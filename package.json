@@ -1,0 +1,28 @@
+{
+  "name": "getstream",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "texuf <texuf.eth@gmail.com>",
+  "packageManager": "yarn@3.8.0",
+  "license": "MIT",
+  "dependencies": {
+    "@river-build/sdk": "^0.0.74",
+    "ethers": "5.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.8",
+    "esbuild": "^0.21.5",
+    "esbuild-plugin-wasm": "^1.1.0",
+    "typescript": "^5.5.3"
+  },
+  "scripts": {
+    "build": "yarn typecheck && yarn build-esbuild",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsc --watch",
+    "build-esbuild": "node esbuild.config.mjs",
+    "start": "node esbuild.config.mjs && node ./dist/index.cjs $*"
+  },
+  "files": [
+    "/dist"
+  ]
+}
