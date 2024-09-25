@@ -9,7 +9,7 @@ import {
   unpackStream,
 } from "@river-build/sdk";
 import {
-  createRiverRegistry,
+  INVALID_ADDRESS,
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
@@ -35,11 +35,13 @@ const run = async () => {
   );
 
   // find the root wallet
-  const rootWallet = await spaceDapp.walletLink.getRootKeyForWallet(param);
+  const rootKey = await spaceDapp.walletLink.getRootKeyForWallet(param);
+  const rootWallet = rootKey === INVALID_ADDRESS ? param : rootKey;
   console.log(`Root wallet address: ${rootWallet}`);
 
   // Make the user stream ID
   const userStreamId = makeUserStreamId(rootWallet);
+
   console.log(`User stream ID: ${userStreamId}`);
 
   // make a river provider
