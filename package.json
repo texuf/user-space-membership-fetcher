@@ -1,12 +1,14 @@
 {
-  "name": "getstream",
+  "name": "user-space-membership-fetcher",
   "version": "1.0.0",
   "main": "index.js",
   "author": "texuf <texuf.eth@gmail.com>",
   "packageManager": "yarn@3.8.0",
   "license": "MIT",
   "dependencies": {
+    "@river-build/proto": "^0.0.74",
     "@river-build/sdk": "^0.0.74",
+    "@river-build/web3": "^0.0.74",
     "ethers": "5.7.2"
   },
   "devDependencies": {
