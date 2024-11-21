@@ -635,6 +635,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/ciphers@npm:1.0.0":
+  version: 1.0.0
+  resolution: "@noble/ciphers@npm:1.0.0"
+  checksum: fa34a8f794deca3c47b82002705d7d742046e772460f1b04156c8e9eb6e0c706b8cb474bb78bdc3f35fae8270b01784f0484d31b8f839b9e16319660b9f229de
+  languageName: node
+  linkType: hard
+
 "@noble/curves@npm:1.2.0, @noble/curves@npm:~1.2.0":
   version: 1.2.0
   resolution: "@noble/curves@npm:1.2.0"
@@ -650,6 +657,15 @@ __metadata:
   dependencies:
     "@noble/hashes": 1.4.0
   checksum: c475a83c4263e2c970eaba728895b9b5d67e0ca880651e9c6e3efdc5f6a4f07ceb5b043bf71c399fc80fada0b8706e69d0772bffdd7b9de2483b988973a34cba
+  languageName: node
+  linkType: hard
+
+"@noble/curves@npm:1.6.0, @noble/curves@npm:~1.6.0":
+  version: 1.6.0
+  resolution: "@noble/curves@npm:1.6.0"
+  dependencies:
+    "@noble/hashes": 1.5.0
+  checksum: 258f3feb2a6098cf35521562ecb7d452fd728e8a008ff9f1ef435184f9d0c782ceb8f7b7fa8df3317c3be7a19f53995ee124cd05c8080b130bd42e3cb072f24d
   languageName: node
   linkType: hard
 
@@ -674,6 +690,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/hashes@npm:1.5.0, @noble/hashes@npm:~1.5.0":
+  version: 1.5.0
+  resolution: "@noble/hashes@npm:1.5.0"
+  checksum: 9cc031d5c888c455bfeef76af649b87f75380a4511405baea633c1e4912fd84aff7b61e99716f0231d244c9cfeda1fafd7d718963e6a0c674ed705e9b1b4f76b
+  languageName: node
+  linkType: hard
+
 "@noble/hashes@npm:~1.3.0, @noble/hashes@npm:~1.3.2":
   version: 1.3.3
   resolution: "@noble/hashes@npm:1.3.3"
@@ -688,68 +711,68 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@river-build/dlog@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/dlog@npm:0.0.74"
+"@river-build/dlog@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/dlog@npm:0.0.86"
   dependencies:
     "@bufbuild/protobuf": ^1.9.0
-    "@river-build/proto": ^0.0.74
+    "@river-build/proto": ^0.0.86
     browser-or-node: ^3.0.0
     debug: ^4.3.4
     ethereum-cryptography: ^1.2.0
-  checksum: 87e8b0d846967f9ba30ed55514a5cf9b392908ade32d7f14267da73efca0be9bccd9248a8908bbb4ff65857e56992619c768b2c5c29b32ed050e34c2c5e5cd6b
+  checksum: 44208eca3f1cb5ec9774c25de24af287f859628477650651135a12c7e387af122438eec78c649df93cc6f74fbfc453663139cf4d00df624ac4f5c7d24c234a6c
   languageName: node
   linkType: hard
 
-"@river-build/encryption@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/encryption@npm:0.0.74"
+"@river-build/encryption@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/encryption@npm:0.0.86"
   dependencies:
     "@bufbuild/protobuf": ^1.9.0
     "@ethereumjs/util": ^8.0.1
     "@matrix-org/olm": ^3.2.15
-    "@river-build/dlog": ^0.0.74
-    "@river-build/proto": ^0.0.74
-    "@river-build/web3": ^0.0.74
+    "@river-build/dlog": ^0.0.86
+    "@river-build/proto": ^0.0.86
+    "@river-build/web3": ^0.0.86
     debug: ^4.3.4
     dexie: ^4.0.7
     ethers: ^5.7.2
     nanoid: ^4.0.0
     typed-emitter: ^2.1.0
-  checksum: d0a044e4cebf37bf4db2a6e2e9dd9f16f7f3e37d2ac376cc77db84b02e332a709016b13a5def932f0fae341c91c1870d64e30f5559b602114e6c74231efbf139
+  checksum: 9dda02fff8ee6e9ab0951c73cf32a61b7501560a4fe3b4a82f567c5135bcf29ca079a2b7171b5b00700c8d0476163674fbddb2058aa8f7aea3ba44769fac2054
   languageName: node
   linkType: hard
 
-"@river-build/generated@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/generated@npm:0.0.74"
-  checksum: 9d1994424cbd6ebe966d236dd50e246a18fa9526e5663d30e8b2ea3b2fdc942402d9b5f651422fb80659e71d083250336d9c988a6aae7e5134d6f9bde0669fbf
+"@river-build/generated@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/generated@npm:0.0.86"
+  checksum: 64ebb3e86516c415668b6460a49d8c5c51e30667c0f4533b44fa9e9bb81cbe41b01b7cae3eb0edceeb0436f097a9e40b91067095383b4eb157404f17a00223b8
   languageName: node
   linkType: hard
 
-"@river-build/proto@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/proto@npm:0.0.74"
+"@river-build/proto@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/proto@npm:0.0.86"
   dependencies:
     "@bufbuild/protobuf": ^1.9.0
     "@connectrpc/connect": ^1.4.0
     "@connectrpc/connect-web": ^1.4.0
-  checksum: af75296e4447ffdc73e25c637d11b47aad9eac8a6b4634c88e834fe4b8e3939071a2c1753fcd2efe36f024b9f78e0dcd3dfbb69863e54633ffbe355614b7ea47
+  checksum: 0fcf84c1ca657bdb8c8ca97a6450123101f22602720bb79a85a161bf7a975176426eb5f174cec048224d9608a966808d3a8a127032c58bac4d3629269e9fd7a9
   languageName: node
   linkType: hard
 
-"@river-build/sdk@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/sdk@npm:0.0.74"
+"@river-build/sdk@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/sdk@npm:0.0.86"
   dependencies:
     "@bufbuild/protobuf": ^1.9.0
     "@connectrpc/connect": ^1.4.0
     "@connectrpc/connect-web": ^1.4.0
     "@ethereumjs/util": ^8.0.1
-    "@river-build/dlog": ^0.0.74
-    "@river-build/encryption": ^0.0.74
-    "@river-build/proto": ^0.0.74
-    "@river-build/web3": ^0.0.74
+    "@river-build/dlog": ^0.0.86
+    "@river-build/encryption": ^0.0.86
+    "@river-build/proto": ^0.0.86
+    "@river-build/web3": ^0.0.86
     browser-or-node: ^3.0.0
     debug: ^4.3.4
     dexie: ^4.0.7
@@ -758,29 +781,30 @@ __metadata:
     lodash: ^4.17.21
     nanoid: ^4.0.0
     p-limit: ^5.0.0
-  checksum: de75a4523368ee379a788124aa28969df2713cdcd17f2708314705334c6c02e807e3db01cd6deb12acdf2fad9f568cefe6f91860f43a628bfa01531d1f796a57
+  checksum: 753ab7dc6be84711714308d4edc751349e0bf4bd4d1667d16746862c2c47d5c62aa810bebfaa30fffc17f22c4f2df5567d25533a41d92088fcae1c602db8ba9c
   languageName: node
   linkType: hard
 
-"@river-build/web3@npm:^0.0.74":
-  version: 0.0.74
-  resolution: "@river-build/web3@npm:0.0.74"
+"@river-build/web3@npm:^0.0.86":
+  version: 0.0.86
+  resolution: "@river-build/web3@npm:0.0.86"
   dependencies:
     "@isaacs/ttlcache": ^1.4.1
-    "@river-build/dlog": ^0.0.74
-    "@river-build/generated": ^0.0.74
+    "@river-build/dlog": ^0.0.86
+    "@river-build/generated": ^0.0.86
     abitype: ^0.9.10
     debug: ^4.3.4
     ethers: ^5.7.2
     lodash: ^4.17.21
+    lru-cache: ^11.0.1
     nanoid: ^4.0.0
     viem: ^1.18.2
     zod: ^3.21.4
-  checksum: 4a51fbaf6189bff96908ed2c20cd39f3f0d2599e631825558cfad11f7095497ef93f007691f344c06a9dee2619e207f022199cfbb380d008b5240c7fffef74c3
+  checksum: 26ed6473280210b67c27799904654d7c209a08f9cedfcb3a9b891f8a0d1ff8d468c7fe3c2a0deb70dfe6a53a72a69cd4dd76851410aec6c8a1650bd2aec9d406
   languageName: node
   linkType: hard
 
-"@scure/base@npm:~1.1.0, @scure/base@npm:~1.1.2, @scure/base@npm:~1.1.6":
+"@scure/base@npm:~1.1.0, @scure/base@npm:~1.1.2, @scure/base@npm:~1.1.6, @scure/base@npm:~1.1.7, @scure/base@npm:~1.1.8":
   version: 1.1.9
   resolution: "@scure/base@npm:1.1.9"
   checksum: 120820a37dfe9dfe4cab2b7b7460552d08e67dee8057ed5354eb68d8e3440890ae983ce3bee957d2b45684950b454a2b6d71d5ee77c1fd3fddc022e2a510337f
@@ -820,6 +844,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@scure/bip32@npm:1.5.0":
+  version: 1.5.0
+  resolution: "@scure/bip32@npm:1.5.0"
+  dependencies:
+    "@noble/curves": ~1.6.0
+    "@noble/hashes": ~1.5.0
+    "@scure/base": ~1.1.7
+  checksum: 2e119525cdffccc3aad7ca64aec22df2101233708111dfb551410f82aae85fe14acf39dc87cea1a535adc327451f9c3dea3c6a2dd22b859508025bc46a7a80ce
+  languageName: node
+  linkType: hard
+
 "@scure/bip39@npm:1.1.1":
   version: 1.1.1
   resolution: "@scure/bip39@npm:1.1.1"
@@ -847,6 +882,16 @@ __metadata:
     "@noble/hashes": ~1.4.0
     "@scure/base": ~1.1.6
   checksum: dbb0b27df753eb6c6380010b25cc9a9ea31f9cb08864fc51e69e5880ff7e2b8f85b72caea1f1f28af165e83b72c48dd38617e43fc632779d025b50ba32ea759e
+  languageName: node
+  linkType: hard
+
+"@scure/bip39@npm:1.4.0":
+  version: 1.4.0
+  resolution: "@scure/bip39@npm:1.4.0"
+  dependencies:
+    "@noble/hashes": ~1.5.0
+    "@scure/base": ~1.1.8
+  checksum: 211f2c01361993bfe54c0e4949f290224381457c7f76d7cd51d6a983f3f4b6b9f85adfd0e623977d777ed80417a5fe729eb19dd34e657147810a0e58a8e7b9e0
   languageName: node
   linkType: hard
 
@@ -1076,6 +1121,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ethereum-cryptography@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "ethereum-cryptography@npm:3.0.0"
+  dependencies:
+    "@noble/ciphers": 1.0.0
+    "@noble/curves": 1.6.0
+    "@noble/hashes": 1.5.0
+    "@scure/bip32": 1.5.0
+    "@scure/bip39": 1.4.0
+  checksum: 3911305fbfee25fda396cd79fec020ff249cc7bb0e12aab52967fdd9289923a8d3a3947144fb62ab12ce1747ba700b3ea789f49639d9116c2f04d7de10ea6eab
+  languageName: node
+  linkType: hard
+
 "ethers@npm:5.7.2, ethers@npm:^5.7.2":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
@@ -1162,6 +1220,13 @@ __metadata:
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
   checksum: eb835a2e51d381e561e508ce932ea50a8e5a68f4ebdd771ea240d3048244a8d13658acbd502cd4829768c56f2e16bdd4340b9ea141297d472517b83868e677f7
+  languageName: node
+  linkType: hard
+
+"lru-cache@npm:^11.0.1":
+  version: 11.0.1
+  resolution: "lru-cache@npm:11.0.1"
+  checksum: 6056230a99fb399234e82368b99586bd4740079e80649102f681b19337b7d8c6bc8dd7f8b8c59377c31d26deb89f548b717ae932e139b4b795879d920fccf820
   languageName: node
   linkType: hard
 
@@ -1277,12 +1342,13 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "user-space-membership-fetcher@workspace:."
   dependencies:
-    "@river-build/proto": ^0.0.74
-    "@river-build/sdk": ^0.0.74
-    "@river-build/web3": ^0.0.74
+    "@river-build/proto": ^0.0.86
+    "@river-build/sdk": ^0.0.86
+    "@river-build/web3": ^0.0.86
     "@types/node": ^20.14.8
     esbuild: ^0.21.5
     esbuild-plugin-wasm: ^1.1.0
+    ethereum-cryptography: ^3.0.0
     ethers: 5.7.2
     typescript: ^5.5.3
   languageName: unknown

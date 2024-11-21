@@ -2,7 +2,13 @@ import { build } from "esbuild";
 import { wasmLoader } from "esbuild-plugin-wasm";
 
 build({
-  entryPoints: ["./src/index.ts"],
+  entryPoints: [
+    "./src/user-space-memberships.ts",
+    "./src/stream-info.ts",
+    "./src/get-stream.ts",
+    "./src/space-info.ts",
+    "./src/token.ts",
+  ],
   bundle: true,
   sourcemap: "inline",
   platform: "node",
