@@ -1,4 +1,6 @@
 import {
+  isChannelStreamId,
+  isSpaceStreamId,
   makeRiverConfig,
   makeStreamRpcClient,
   streamIdAsBytes,
@@ -7,6 +9,7 @@ import {
 } from "@river-build/sdk";
 import {
   LocalhostWeb3Provider,
+  Permission,
   RiverRegistry,
   SpaceDapp,
 } from "@river-build/web3";
@@ -18,8 +21,17 @@ const run = async () => {
     console.error("no stream id provided");
     process.exit(1);
   }
-  const env = "delta";
-  console.log(`Running stream-info for ${param} in ${env}`);
+  if (!(isSpaceStreamId(param) || isChannelStreamId(param))) {
+    console.error("stream id is not a valid channel or space stream id");
+    process.exit(1);
+  }
+  const param2 = process.argv[3];
+  if (!param2) {
+    console.error("no permission id provided");
+    process.exit(1);
+  }
+  const env = "omega";
+  console.log(`Running permissions for ${param} in ${env}`);
 
   // make the config
   const config = makeRiverConfig(env);
@@ -29,6 +41,31 @@ const run = async () => {
     config.base.chainConfig,
     new LocalhostWeb3Provider(config.base.rpcUrl)
   );
+
+  if (isSpaceStreamId(param)) {
+    const space = await spaceDapp.getSpace(param);
+    const isEntitledRead = await spaceDapp.isEntitledToSpace(
+      param,
+      param2,
+      Permission.Read
+    );
+
+    const wallets = await spaceDapp.getWalletLink().getLinkedWallets(param2);
+
+    const isMember: { address: string; isMember?: boolean }[] = wallets.map(
+      (x) => ({ address: x, isMember: undefined })
+    );
+    for (const x of isMember) {
+      x.isMember = await spaceDapp.hasSpaceMembership(param, x.address);
+    }
+
+    console.log(
+      `isEntitled:`,
+      JSON.stringify({ isEntitledRead, isMember }, undefined, 2)
+    );
+  } else {
+    console.log("channel?");
+  }
 
   // make a river provider
   const riverRegistry = new RiverRegistry(
@@ -49,37 +86,8 @@ const run = async () => {
 
   //const urlsStr = await riverRegistry.getOperationalNodeUrls();
   //const urls = urlsStr.split(",");
-  const rpcUrl = node.url;
-  const riverRpcProvider = makeStreamRpcClient(rpcUrl);
-
-  // fetch the user stream
-  const response = await riverRpcProvider.getStream({
-    streamId: streamIdAsBytes(param),
-  });
-
-  const unpackedResponse = await unpackStream(response.stream, undefined);
-  const streamView = new StreamStateView("0", param);
-  streamView.initialize(
-    unpackedResponse.streamAndCookie.nextSyncCookie,
-    unpackedResponse.streamAndCookie.events,
-    unpackedResponse.snapshot,
-    unpackedResponse.streamAndCookie.miniblocks,
-    [],
-    unpackedResponse.prevSnapshotMiniblockNum,
-    undefined,
-    [],
-    undefined
-  );
-
-  console.log("member count", streamView.getMembers().joined.size);
-
-  // console.log("Stream Info:");
-  // console.log(unpackedResponse);
-  // console.log(
-  //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
-  //     m.events.map((e) => e.event.toJsonString({ prettySpaces: 2 }))
-  //   )
-  // );
+  //const rpcUrl = node.url;
+  //const riverRpcProvider = makeStreamRpcClient(rpcUrl);
 };
 
 run()

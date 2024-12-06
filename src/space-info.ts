@@ -31,7 +31,7 @@ const run = async () => {
   console.log(`Running stream-info for ${spaceAddress} ${streamId}`);
 
   // make the config
-  const config = makeRiverConfig("omega");
+  const config = makeRiverConfig("alpha");
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(
@@ -102,6 +102,9 @@ const run = async () => {
 
   console.log("Stream Info:");
   console.log(unpackedResponse);
+
+  const spaceImage = await streamView.spaceContent.getSpaceImage();
+  console.log("space image", spaceImage);
   // console.log(
   //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
   //     m.events.map((e) => e.event.toJsonString({ prettySpaces: 2 }))

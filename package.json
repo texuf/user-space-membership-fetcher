@@ -6,9 +6,9 @@
   "packageManager": "yarn@3.8.0",
   "license": "MIT",
   "dependencies": {
-    "@river-build/proto": "^0.0.86",
-    "@river-build/sdk": "^0.0.86",
-    "@river-build/web3": "^0.0.86",
+    "@river-build/proto": "^0.0.122",
+    "@river-build/sdk": "^0.0.122",
+    "@river-build/web3": "^0.0.122",
     "ethereum-cryptography": "^3.0.0",
     "ethers": "5.7.2"
   },
@@ -26,6 +26,7 @@
     "stream": "yarn build-esbuild && node ./dist/stream-info.cjs $*",
     "space": "yarn build-esbuild && node ./dist/space-info.cjs $*",
     "get-stream": "yarn build-esbuild && node ./dist/get-stream.cjs $*",
+    "permissions": "yarn build-esbuild && node ./dist/permissions.cjs $*",
     "user": "yarn build-esbuild && node ./dist/user-space-memberships.cjs $*",
     "token": "yarn build-esbuild && node ./dist/token.cjs $*"
   },

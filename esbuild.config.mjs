@@ -8,6 +8,7 @@ build({
     "./src/get-stream.ts",
     "./src/space-info.ts",
     "./src/token.ts",
+    "./src/permissions.ts",
   ],
   bundle: true,
   sourcemap: "inline",
