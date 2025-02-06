@@ -1,6 +1,8 @@
 import {
+  isChannelStreamId,
   makeRiverConfig,
   makeStreamRpcClient,
+  spaceIdFromChannelId,
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
@@ -8,17 +10,18 @@ import {
 import {
   LocalhostWeb3Provider,
   RiverRegistry,
+  SpaceAddressFromSpaceId,
   SpaceDapp,
 } from "@river-build/web3";
 
 const run = async () => {
+  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param = process.argv[2];
   if (!param) {
     console.error("no stream id provided");
     process.exit(1);
   }
-  const env = "delta";
   console.log(`Running stream-info for ${param} in ${env}`);
 
   // make the config
@@ -72,6 +75,11 @@ const run = async () => {
   );
 
   console.log("member count", streamView.getMembers().joined.size);
+  if (isChannelStreamId(param)) {
+    const spaceId = spaceIdFromChannelId(param);
+    console.log("spaceId", spaceId);
+    console.log("space address", SpaceAddressFromSpaceId(spaceId));
+  }
 
   // console.log("Stream Info:");
   // console.log(unpackedResponse);

@@ -14,6 +14,7 @@ import {
 } from "@river-build/web3";
 
 const run = async () => {
+  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param2 = process.argv[2];
   if (!param2) {
@@ -28,10 +29,10 @@ const run = async () => {
     ? SpaceIdFromSpaceAddress(param2)
     : param2;
 
-  console.log(`Running stream-info for ${spaceAddress} ${streamId}`);
+  console.log(`Running stream-info for ${spaceAddress} ${streamId} in ${env}`);
 
   // make the config
-  const config = makeRiverConfig("alpha");
+  const config = makeRiverConfig(env);
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(
@@ -73,10 +74,10 @@ const run = async () => {
   console.log(JSON.stringify(node, undefined, 2));
 
   const rpcUrl = node.url;
-  const riverRpcProvider = makeStreamRpcClient(rpcUrl);
+  const riverRpcProvider1 = makeStreamRpcClient(rpcUrl);
 
   // fetch the user stream
-  const response = await riverRpcProvider.getStream({
+  const response = await riverRpcProvider1.getStream({
     streamId: streamIdAsBytes(streamId),
   });
 
@@ -86,7 +87,7 @@ const run = async () => {
   const mb = byteLength / 1024 / 1024;
   console.log("Response size:", mb.toFixed(2), "MB");
 
-  const unpackedResponse = await unpackStream(response.stream);
+  const unpackedResponse = await unpackStream(response.stream, undefined);
   const streamView = new StreamStateView("0", streamId);
   streamView.initialize(
     unpackedResponse.streamAndCookie.nextSyncCookie,

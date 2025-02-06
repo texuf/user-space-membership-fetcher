@@ -9,3 +9,9 @@ yarn install
 ```
 yarn start <wallet-address>
 ```
+
+# Updgrade
+
+```
+yarn upgrade @river-build/*
+```

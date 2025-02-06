@@ -15,6 +15,8 @@ import {
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 
 const run = async () => {
+
+  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   //   const param = process.argv[2];
   //   if (!param) {

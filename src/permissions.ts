@@ -15,6 +15,7 @@ import {
 } from "@river-build/web3";
 
 const run = async () => {
+  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param = process.argv[2];
   if (!param) {
@@ -30,7 +31,6 @@ const run = async () => {
     console.error("no permission id provided");
     process.exit(1);
   }
-  const env = "omega";
   console.log(`Running permissions for ${param} in ${env}`);
 
   // make the config

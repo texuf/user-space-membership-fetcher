@@ -15,6 +15,7 @@ import {
   } from "@river-build/web3";
   
   const run = async () => {
+	const env = process.env.ENV ?? "omega";
 	// Get the wallet address from the command line arguments
 	const param2 = process.argv[2];
 	if (!param2) {
@@ -23,7 +24,7 @@ import {
 	}
 
 	// make the config
-	const config = makeRiverConfig("omega");
+	const config = makeRiverConfig(env);
 
 	// make a space dapp
 	const spaceDapp = new SpaceDapp(

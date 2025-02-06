@@ -9,6 +9,7 @@ build({
     "./src/space-info.ts",
     "./src/token.ts",
     "./src/permissions.ts",
+    "./src/user-inbox.ts",
   ],
   bundle: true,
   sourcemap: "inline",

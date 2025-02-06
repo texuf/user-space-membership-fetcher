@@ -6,6 +6,7 @@
   "packageManager": "yarn@3.8.0",
   "license": "MIT",
   "dependencies": {
+    "@river-build/encryption": "^0.0.122",
     "@river-build/proto": "^0.0.122",
     "@river-build/sdk": "^0.0.122",
     "@river-build/web3": "^0.0.122",
@@ -28,6 +29,7 @@
     "get-stream": "yarn build-esbuild && node ./dist/get-stream.cjs $*",
     "permissions": "yarn build-esbuild && node ./dist/permissions.cjs $*",
     "user": "yarn build-esbuild && node ./dist/user-space-memberships.cjs $*",
+    "inbox": "yarn build-esbuild && node ./dist/user-inbox.cjs $*",
     "token": "yarn build-esbuild && node ./dist/token.cjs $*"
   },
   "files": [
