@@ -75,6 +75,16 @@ const run = async () => {
   );
 
   console.log("member count", streamView.getMembers().joined.size);
+  console.log("pool size", unpackedResponse.streamAndCookie.events.length);
+  console.log(
+    "currentBlock",
+    unpackedResponse.streamAndCookie.nextSyncCookie.minipoolGen
+  );
+  console.log(
+    "events returned",
+    unpackedResponse.streamAndCookie.miniblocks.flatMap((x) => x.events).length
+  );
+
   if (isChannelStreamId(param)) {
     const spaceId = spaceIdFromChannelId(param);
     console.log("spaceId", spaceId);
