@@ -1,3 +1,12 @@
+import { toBinary, toJsonString } from "@bufbuild/protobuf";
+import {
+  GetStreamResponseSchema,
+  Snapshot,
+  SnapshotSchema,
+  StreamAndCookie,
+  StreamAndCookieSchema,
+  StreamEventSchema,
+} from "@river-build/proto";
 import {
   makeRiverConfig,
   makeStreamRpcClient,
@@ -82,7 +91,7 @@ const run = async () => {
   });
 
   // print size of the response
-  const byteLength = response.toBinary().byteLength;
+  const byteLength = toBinary(GetStreamResponseSchema, response).byteLength;
   // print size in mb
   const mb = byteLength / 1024 / 1024;
   console.log("Response size:", mb.toFixed(2), "MB");
@@ -102,14 +111,22 @@ const run = async () => {
   );
 
   console.log("Stream Info:");
-  console.log(unpackedResponse);
+  console.log(unpackedResponse.snapshot);
 
   const spaceImage = await streamView.spaceContent.getSpaceImage();
   console.log("space image", spaceImage);
   // console.log(
   //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
-  //     m.events.map((e) => e.event.toJsonString({ prettySpaces: 2 }))
+  //     m.events
+  //       .filter((e) => e.event.payload.case !== "miniblockHeader")
+  //       .map((e) =>
+  //         toJsonString(StreamEventSchema, e.event, { prettySpaces: 2 })
+  //       )
   //   )
+  // );
+  // console.log(
+  //   "initial snapshot (without later events)",
+  //   toJsonString(SnapshotSchema, unpackedResponse.snapshot, { prettySpaces: 2 })
   // );
 };
 
