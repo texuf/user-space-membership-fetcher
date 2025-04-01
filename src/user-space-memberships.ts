@@ -1,5 +1,7 @@
+import { bin_fromBase64, bin_toHexString } from "@river-build/dlog";
 import { MembershipOp } from "@river-build/proto";
 import {
+  getUserIdFromStreamId,
   isChannelStreamId,
   isSpaceStreamId,
   makeRiverConfig,
@@ -9,8 +11,10 @@ import {
   makeUserSettingsStreamId,
   makeUserStreamId,
   streamIdAsBytes,
+  StreamRpcClient,
   StreamStateView,
   unpackStream,
+  userIdFromAddress,
 } from "@river-build/sdk";
 import {
   INVALID_ADDRESS,
@@ -39,9 +43,32 @@ const run = async () => {
     new LocalhostWeb3Provider(config.base.rpcUrl)
   );
 
+  let walletAddress = param;
+
+  if (!walletAddress.startsWith("0x")) {
+    if (
+      walletAddress.startsWith("a8") ||
+      walletAddress.startsWith("a1") ||
+      walletAddress.startsWith("a5") ||
+      walletAddress.startsWith("ad")
+    ) {
+      walletAddress = getUserIdFromStreamId(walletAddress);
+    } else {
+      try {
+        const binaddr = bin_fromBase64(param);
+        walletAddress = userIdFromAddress(binaddr);
+      } catch (e) {
+        console.error("Wallet address must start with 0x");
+        process.exit(1);
+      }
+    }
+  }
+
+  console.log(`Using wallet address: ${walletAddress}`);
+
   // find the root wallet
-  const rootKey = await spaceDapp.walletLink.getRootKeyForWallet(param);
-  const rootWallet = rootKey === INVALID_ADDRESS ? param : rootKey;
+  const rootKey = await spaceDapp.walletLink.getRootKeyForWallet(walletAddress);
+  const rootWallet = rootKey === INVALID_ADDRESS ? walletAddress : rootKey;
   console.log(`Root wallet address: ${rootWallet}`);
 
   const linkedWallets = await spaceDapp.walletLink.getLinkedWallets(rootWallet);
@@ -110,46 +137,14 @@ const run = async () => {
     )
     .map((kv) => kv[0]);
 
-  const responses = [];
-  // console.log("User Memberships:");
-  // console.log(joined);
-  // for (const streamId of joined) {
-  //   console.log("================");
-  //   console.log(streamId);
-  //   try {
-  //     //const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
-  //     const streamStruct = await riverRegistry.getStream(
-  //       streamIdAsBytes(streamId)
-  //     );
-  //     const node = await riverRegistry.nodeRegistry.read.getNode(
-  //       streamStruct.nodes[0]
-  //     );
-  //     console.log("node:", node.url);
-  //     try {
-  //       const stream = await riverRpcProvider.getStream({
-  //         streamId: streamIdAsBytes(streamId),
-  //       });
-  //       console.log("success");
-  //     } catch (e) {
-  //       console.error("failed", node.url);
-  //       responses.push({
-  //         streamId,
-  //         nodeUrl: node.url,
-  //         from: rpcUrl,
-  //       });
-  //     }
-  //   } catch (e) {
-  //     console.error("failed", streamId);
-  //     responses.push({
-  //       streamId,
-  //       nodeUrl: "failed to lookup",
-  //       from: rpcUrl,
-  //     });
-  //   }
-  // }
-  // console.log(responses);
+  console.log("User Memberships:");
+  console.log(joined);
+  for (const streamId of joined) {
+    await loadStream(streamId, riverRegistry, riverRpcProvider);
+  }
 
   for (const streamId of [
+    userStreamId,
     userSettingsStreamId,
     userInboxStreamId,
     userMetadataStreamId,
@@ -160,9 +155,11 @@ const run = async () => {
       const stream = await riverRpcProvider.getStream({
         streamId: streamIdAsBytes(streamId),
       });
+      const unpackedResponse = await unpackStream(response.stream, undefined);
+      console.log("pool size", unpackedResponse.streamAndCookie.events.length);
       console.log("success");
     } catch (e) {
-      console.error("failed", streamId);
+      console.error("failed", streamId, e);
     }
   }
 };
@@ -173,3 +170,46 @@ run()
     console.error("unhandled error:", e);
     process.exit(1);
   });
+
+async function loadStream(
+  streamId: string,
+  riverRegistry: RiverRegistry,
+  riverRpcProvider: StreamRpcClient
+) {
+  console.log("================");
+  console.log(streamId);
+  try {
+    //const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
+    const streamStruct = await riverRegistry.getStream(
+      streamIdAsBytes(streamId)
+    );
+    const node = await riverRegistry.nodeRegistry.read.getNode(
+      streamStruct.nodes[0]
+    );
+    console.log("node:", node.url);
+    try {
+      const response = await riverRpcProvider.getStream({
+        streamId: streamIdAsBytes(streamId),
+      });
+      const unpackedResponse = await unpackStream(response.stream, undefined);
+      const streamView = new StreamStateView("0", streamId);
+      streamView.initialize(
+        unpackedResponse.streamAndCookie.nextSyncCookie,
+        unpackedResponse.streamAndCookie.events,
+        unpackedResponse.snapshot,
+        unpackedResponse.streamAndCookie.miniblocks,
+        [],
+        unpackedResponse.prevSnapshotMiniblockNum,
+        undefined,
+        [],
+        undefined
+      );
+
+      console.log("success");
+    } catch (e) {
+      console.error("failed", node.url);
+    }
+  } catch (e) {
+    console.error("failed", streamId, e);
+  }
+}

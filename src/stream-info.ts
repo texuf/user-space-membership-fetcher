@@ -27,6 +27,9 @@ const run = async () => {
   // make the config
   const config = makeRiverConfig(env);
 
+  console.log(`Base rpc url: ${config.base.rpcUrl}`);
+  console.log(`River rpc url: ${config.river.rpcUrl}`);
+
   // make a space dapp
   const spaceDapp = new SpaceDapp(
     config.base.chainConfig,
@@ -74,6 +77,17 @@ const run = async () => {
     undefined
   );
 
+  const solicitations = streamView
+    .getMembers()
+    .joined.get("0xebb21B382752d5E603C0e87B7Af9e0c412EFbce6");
+  console.log("ha", solicitations);
+
+  // for (const event of streamView.timeline) {
+  //   console.log(
+  //     "last event",
+  //     event.remoteEvent?.event.toJsonString({ prettySpaces: 2 })
+  //   );
+  // }
   console.log("member count", streamView.getMembers().joined.size);
   console.log("pool size", unpackedResponse.streamAndCookie.events.length);
   console.log(
@@ -97,7 +111,7 @@ const run = async () => {
   //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
   //     m.events.map((e) => e.event.toJsonString({ prettySpaces: 2 }))
   //   )
-  // );
+  //);
 };
 
 run()

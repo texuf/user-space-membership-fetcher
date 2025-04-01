@@ -95,7 +95,7 @@ const run = async () => {
           streamIdAsString(content.value.streamId),
           Object.keys(content.value.ciphertexts),
           content.value.sessionIds,
-          //parseGroupEncryptionAlgorithmId(content.value.algorithm)
+          parseGroupEncryptionAlgorithmId(content.value.algorithm).value
         );
         break;
       case "ack":

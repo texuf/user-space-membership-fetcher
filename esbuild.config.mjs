@@ -10,6 +10,7 @@ build({
     "./src/token.ts",
     "./src/permissions.ts",
     "./src/user-inbox.ts",
+    "./src/tips.ts",
   ],
   bundle: true,
   sourcemap: "inline",
