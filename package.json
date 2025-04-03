@@ -12,6 +12,7 @@
     "@river-build/proto": "^0.0.189",
     "@river-build/sdk": "^0.0.189",
     "@river-build/web3": "^0.0.189",
+    "dotenv": "^16.4.7",
     "ethereum-cryptography": "^3.0.0",
     "ethers": "5.7.2"
   },
