@@ -72,6 +72,10 @@ const run = async () => {
   console.log("Space Info:");
   console.log(JSON.stringify(info, undefined, 2));
 
+  const channelInfo = await spaceDapp.getChannels(streamId);
+  console.log("Channel Info:");
+  console.log(JSON.stringify(channelInfo, undefined, 2));
+
   // find nodes for the stream
   const streamStruct = await riverRegistry.getStream(streamIdAsBytes(streamId));
   console.log("Nodes:");
@@ -128,6 +132,14 @@ const run = async () => {
   //   "initial snapshot (without later events)",
   //   toJsonString(SnapshotSchema, unpackedResponse.snapshot, { prettySpaces: 2 })
   // );
+
+  console.log("member count", streamView.getMembers().joined.size);
+  console.log(
+    "members: ",
+    Array.from(streamView.getMembers().joined.entries()).map(
+      ([k, v]) => v.userId
+    )
+  );
 };
 
 run()

@@ -17,8 +17,6 @@ import {
 
 // Replace with your provider URL (Infura, Alchemy, or local node)
 //const PROVIDER_URL = "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY";
-//const PROVIDER_URL =
-// "https://base-mainnet.g.alchemy.com/v2/EJX2K5g7r-491-FI3kzrOfoKipFSKGVw";
 const PROVIDER_URL =
   "https://base-mainnet.g.alchemy.com/v2/Kq12vH3nOW2cbJv79ZgUM5FcT-Y424m1";
 
@@ -60,7 +58,7 @@ async function fetchTipEvents() {
 
   // Fetch logs for the Tip event
   const logs = await provider.getLogs({
-    //address: CONTRACT_ADDRESS,
+    address: CONTRACT_ADDRESS,
     topics: [TIP_EVENT_TOPIC],
     fromBlock,
     toBlock: "latest",

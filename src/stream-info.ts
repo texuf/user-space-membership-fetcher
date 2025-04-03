@@ -1,5 +1,8 @@
+import { toJsonString } from "@bufbuild/protobuf";
+import { StreamEventSchema } from "@river-build/proto";
 import {
   isChannelStreamId,
+  isPersistedEvent,
   makeRiverConfig,
   makeStreamRpcClient,
   spaceIdFromChannelId,
@@ -89,6 +92,12 @@ const run = async () => {
   //   );
   // }
   console.log("member count", streamView.getMembers().joined.size);
+  console.log(
+    "members: ",
+    Array.from(streamView.getMembers().joined.entries()).map(
+      ([k, v]) => v.userId
+    )
+  );
   console.log("pool size", unpackedResponse.streamAndCookie.events.length);
   console.log(
     "currentBlock",
@@ -107,11 +116,19 @@ const run = async () => {
 
   // console.log("Stream Info:");
   // console.log(unpackedResponse);
-  // console.log(
-  //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
-  //     m.events.map((e) => e.event.toJsonString({ prettySpaces: 2 }))
-  //   )
-  //);
+  console.log(
+    unpackedResponse.streamAndCookie.miniblocks.map((m) =>
+      m.events
+        .filter(
+          (e) =>
+            isPersistedEvent(e, "backward") &&
+            e.event.payload.case !== "miniblockHeader"
+        )
+        .map((e) =>
+          toJsonString(StreamEventSchema, e.event, { prettySpaces: 2 })
+        )
+    )
+  );
 };
 
 run()
