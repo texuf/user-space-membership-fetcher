@@ -6,13 +6,13 @@ import {
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
   Permission,
   RiverRegistry,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";

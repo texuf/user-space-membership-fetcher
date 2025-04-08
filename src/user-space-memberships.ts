@@ -1,5 +1,5 @@
-import { bin_fromBase64, bin_toHexString } from "@river-build/dlog";
-import { MembershipOp } from "@river-build/proto";
+import { bin_fromBase64, bin_toHexString } from "@towns-protocol/dlog";
+import { MembershipOp } from "@towns-protocol/proto";
 import {
   getUserIdFromStreamId,
   isChannelStreamId,
@@ -15,14 +15,14 @@ import {
   StreamStateView,
   unpackStream,
   userIdFromAddress,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";

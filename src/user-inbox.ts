@@ -1,5 +1,5 @@
-import { parseGroupEncryptionAlgorithmId } from "@river-build/encryption";
-import { MembershipOp } from "@river-build/proto";
+import { parseGroupEncryptionAlgorithmId } from "@towns-protocol/encryption";
+import { MembershipOp } from "@towns-protocol/proto";
 import {
   isChannelStreamId,
   isSpaceStreamId,
@@ -13,14 +13,14 @@ import {
   streamIdAsString,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";

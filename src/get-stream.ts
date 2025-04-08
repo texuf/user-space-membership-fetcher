@@ -1,4 +1,4 @@
-import { GetStreamRequest } from "@river-build/proto";
+import { GetStreamRequest } from "@towns-protocol/proto";
 import {
   makeRiverConfig,
   makeStreamRpcClient,
@@ -6,16 +6,15 @@ import {
   streamIdAsString,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 
 const run = async () => {
-
   const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   //   const param = process.argv[2];

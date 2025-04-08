@@ -1,5 +1,5 @@
 import { toJsonString } from "@bufbuild/protobuf";
-import { StreamEventSchema } from "@river-build/proto";
+import { StreamEventSchema } from "@towns-protocol/proto";
 import {
   isChannelStreamId,
   isPersistedEvent,
@@ -9,13 +9,13 @@ import {
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";
@@ -66,6 +66,24 @@ const run = async () => {
     streamId: streamIdAsBytes(param),
   });
 
+  const headerSizes = response.stream?.miniblocks.map((m) => {
+    return m.header?.event.byteLength ?? 0;
+  });
+  console.log("header sizes", headerSizes);
+  const headerSize = response.stream?.miniblocks.reduce((acc, curr) => {
+    return acc + (curr.header?.event.byteLength ?? 0);
+  }, 0);
+  console.log("header size", headerSize);
+  const eventSize = response.stream?.miniblocks.reduce((acc, curr) => {
+    return (
+      acc +
+      curr.events.reduce((acc, curr) => {
+        return acc + (curr.event.byteLength ?? 0);
+      }, 0)
+    );
+  }, 0);
+  console.log("event size", eventSize);
+
   const unpackedResponse = await unpackStream(response.stream, undefined);
   const streamView = new StreamStateView("0", param);
   streamView.initialize(
@@ -92,12 +110,12 @@ const run = async () => {
   //   );
   // }
   console.log("member count", streamView.getMembers().joined.size);
-  console.log(
-    "members: ",
-    Array.from(streamView.getMembers().joined.entries()).map(
-      ([k, v]) => v.userId
-    )
-  );
+  // console.log(
+  //   "members: ",
+  //   Array.from(streamView.getMembers().joined.entries()).map(
+  //     ([k, v]) => v.userId
+  //   )
+  // );
   console.log("pool size", unpackedResponse.streamAndCookie.events.length);
   console.log(
     "currentBlock",
@@ -116,19 +134,19 @@ const run = async () => {
 
   // console.log("Stream Info:");
   // console.log(unpackedResponse);
-  console.log(
-    unpackedResponse.streamAndCookie.miniblocks.map((m) =>
-      m.events
-        .filter(
-          (e) =>
-            isPersistedEvent(e, "backward") &&
-            e.event.payload.case !== "miniblockHeader"
-        )
-        .map((e) =>
-          toJsonString(StreamEventSchema, e.event, { prettySpaces: 2 })
-        )
-    )
-  );
+  // console.log(
+  //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
+  //     m.events
+  //       .filter(
+  //         (e) =>
+  //           isPersistedEvent(e, "backward") &&
+  //           e.event.payload.case !== "miniblockHeader"
+  //       )
+  //       .map((e) =>
+  //         toJsonString(StreamEventSchema, e.event, { prettySpaces: 2 })
+  //       )
+  //   )
+  // );
 };
 
 run()

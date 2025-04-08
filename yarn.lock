@@ -7,11 +7,6 @@
   resolved "https://registry.yarnpkg.com/@adraffy/ens-normalize/-/ens-normalize-1.11.0.tgz#42cc67c5baa407ac25059fcd7d405cc5ecdb0c33"
   integrity sha512-/3DDPKHqqIqxUULp8yP4zODUY1i+2xvVWsv8A79xGWdCAG+8sb0hRh0Rk2QyOJUnnbyPUAZYcpBuRe3nS2OIUg==
 
-"@bufbuild/protobuf@^1.9.0":
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-1.10.0.tgz#1a67ac889c2d464a3492b3e54c38f80517963b16"
-  integrity sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==
-
 "@bufbuild/protobuf@^2.2.2":
   version "2.2.5"
   resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-2.2.5.tgz#8e82c0af292113b4a89f8b658c71c4636c8d2e36"
@@ -1024,147 +1019,6 @@
   resolved "https://registry.yarnpkg.com/@noble/secp256k1/-/secp256k1-1.7.1.tgz#b251c70f824ce3ca7f8dc3df08d58f005cc0507c"
   integrity sha512-hOUk6AyBFmqVrv7k5WAw/LpszxVbj9gGN4JRkIX52fdFAj1UA61KXmZDvqVEm+pOyec3+fIeZB02LYa/pWOArw==
 
-"@river-build/dlog@^0.0.164":
-  version "0.0.164"
-  resolved "https://registry.yarnpkg.com/@river-build/dlog/-/dlog-0.0.164.tgz#6e302cfa1e001c998db044b8045f36c8cd885578"
-  integrity sha512-nrMzaWy6TWF7nYyxyaWMagDN/ZojMux6Ca31DwYGKXW2OEQdHLQ5i3RYCw0E6rjIJlAK/IHvj4dafumA8uWZhg==
-  dependencies:
-    "@bufbuild/protobuf" "^1.9.0"
-    "@river-build/proto" "^0.0.164"
-    browser-or-node "^3.0.0"
-    debug "^4.3.4"
-    ethereum-cryptography "^1.2.0"
-
-"@river-build/dlog@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/dlog/-/dlog-0.0.189.tgz#27f570b8aab29d685b9ca0102c9a2c52fbacc58b"
-  integrity sha512-A5CJsbGmdQbpHvAULHJEpm3gvQDSGYoZvADhIb+GifEgyI7gcAL3cmZ1Xq+hUCXGRgzqKEBf/jG7c0tLkgAB5g==
-  dependencies:
-    "@bufbuild/protobuf" "^2.2.2"
-    "@river-build/proto" "^0.0.189"
-    browser-or-node "^3.0.0"
-    debug "^4.3.4"
-    ethereum-cryptography "^1.2.0"
-
-"@river-build/encryption@^0.0.164":
-  version "0.0.164"
-  resolved "https://registry.yarnpkg.com/@river-build/encryption/-/encryption-0.0.164.tgz#aa2b5be82a7f0d44551ea9f3fa43ffaf0d9b9fb1"
-  integrity sha512-iIbhAs7mUE3iXN74YqsEF0iNLRsHrsmK/y/j5JVf1GF5DYDSYovJ0brfU9peMsu9DvDaymyOljWtEZPOAcTr+Q==
-  dependencies:
-    "@bufbuild/protobuf" "^1.9.0"
-    "@ethereumjs/util" "^8.0.1"
-    "@matrix-org/olm" "^3.2.15"
-    "@river-build/dlog" "^0.0.164"
-    "@river-build/proto" "^0.0.164"
-    "@river-build/web3" "^0.0.164"
-    debug "^4.3.4"
-    dexie "^4.0.7"
-    ethers "^5.7.2"
-    lru-cache "^11.0.1"
-    nanoid "^4.0.0"
-    typed-emitter "^2.1.0"
-
-"@river-build/encryption@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/encryption/-/encryption-0.0.189.tgz#8d80a96aa23dd1ed42f08b775ff964fa99e60d33"
-  integrity sha512-Z1ppJ4KlTutrVmd3DVpxGanBVmYKnAJ5QDEhhnVB1oaY/bcPwH1Foblh+yw5wu5BsKc6mFkzZlXXaxgIyTZiSA==
-  dependencies:
-    "@bufbuild/protobuf" "^2.2.2"
-    "@ethereumjs/util" "^8.0.1"
-    "@matrix-org/olm" "^3.2.15"
-    "@river-build/dlog" "^0.0.189"
-    "@river-build/proto" "^0.0.189"
-    "@river-build/web3" "^0.0.189"
-    debug "^4.3.4"
-    dexie "^4.0.7"
-    ethers "^5.7.2"
-    lru-cache "^11.0.1"
-    nanoid "^4.0.0"
-    typed-emitter "^2.1.0"
-
-"@river-build/generated@^0.0.164":
-  version "0.0.164"
-  resolved "https://registry.yarnpkg.com/@river-build/generated/-/generated-0.0.164.tgz#26a0868ce8f14576f5f8acbe5154e0399d498128"
-  integrity sha512-EQg5drvHMOQfiV01K9JktNhkPHuNlZa5X08wbTHqwGgzC5kF6bDZS/NjevpRc2ivLWHzoAkhnGZ1rfgrEh53kw==
-
-"@river-build/generated@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/generated/-/generated-0.0.189.tgz#ec093da6f4a857bfab8286603d1a0007514960e7"
-  integrity sha512-+GRuYkst97ze9F3JBqnGyORMVDIS8zyM7N6IBvCaeVT0L39PE0rAk0r1ZwvLZeTSS3/jIbmHGn28WFn6epYLjA==
-
-"@river-build/proto@^0.0.164":
-  version "0.0.164"
-  resolved "https://registry.yarnpkg.com/@river-build/proto/-/proto-0.0.164.tgz#23aeb88243447649881b3d4f054ef5503856b86a"
-  integrity sha512-OWEJU51sMtzSQJi+0Eb9EqZ5x/ofWycZXbXkynTVTEVgmDpQv4LPYf38G6LHR/CHh/ujWIYhAIbe4mrv6kwC0Q==
-  dependencies:
-    "@bufbuild/protobuf" "^1.9.0"
-
-"@river-build/proto@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/proto/-/proto-0.0.189.tgz#811db7a441435f87ab3f1890759461890caf6e5c"
-  integrity sha512-MPAyEDCPGF29uLVm8h7REmGDH0lt8VISnXKOWfORuM6SLFlt2xkgDSrIsD1giunTJQakgrVb9bDahoSOBdmB9w==
-  dependencies:
-    "@bufbuild/protobuf" "^2.2.2"
-
-"@river-build/sdk@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/sdk/-/sdk-0.0.189.tgz#0d03ea0b5a862e99a8ad38bc707a488ab1671710"
-  integrity sha512-7xAR2OH0/iFqyqhTVhpEe9MSWVdFesXgeGHmuH/0xgTka5e+FyFOQ8y65idDtbUoqfIUoHiCU6yKEYTkBA94Fw==
-  dependencies:
-    "@bufbuild/protobuf" "^2.2.2"
-    "@connectrpc/connect" "^2.0.0"
-    "@connectrpc/connect-node" "^2.0.0"
-    "@connectrpc/connect-web" "^2.0.0"
-    "@ethereumjs/util" "^8.0.1"
-    "@river-build/dlog" "^0.0.189"
-    "@river-build/encryption" "^0.0.189"
-    "@river-build/generated" "^0.0.189"
-    "@river-build/proto" "^0.0.189"
-    "@river-build/web3" "^0.0.189"
-    browser-or-node "^3.0.0"
-    debug "^4.3.4"
-    dexie "^4.0.7"
-    ethereum-cryptography "^1.2.0"
-    ethers "^5.7.2"
-    lodash "^4.17.21"
-    nanoid "^4.0.0"
-    p-limit "^6.1.0"
-    vitest "3.0.5"
-
-"@river-build/web3@^0.0.164":
-  version "0.0.164"
-  resolved "https://registry.yarnpkg.com/@river-build/web3/-/web3-0.0.164.tgz#03a7ef4d4249a4feed2d00bb9b51a395d1c1c6c7"
-  integrity sha512-SPMWaAYii0BWzOSIykue5Z2QsAlsoUWX+f6bJwInYaJ6/N6xLHY4zrTOFGaJnUT6blmoD4i6lWxnh9q6kRnQaw==
-  dependencies:
-    "@isaacs/ttlcache" "^1.4.1"
-    "@river-build/dlog" "^0.0.164"
-    "@river-build/generated" "^0.0.164"
-    abitype "^0.9.10"
-    debug "^4.3.4"
-    ethers "^5.7.2"
-    lodash "^4.17.21"
-    lru-cache "^11.0.1"
-    nanoid "^4.0.0"
-    viem "^2.21.51"
-    zod "^3.21.4"
-
-"@river-build/web3@^0.0.189":
-  version "0.0.189"
-  resolved "https://registry.yarnpkg.com/@river-build/web3/-/web3-0.0.189.tgz#4dafb8240dbcc568e7a3751ea2cfc6c5792e73f5"
-  integrity sha512-ygqMJOtO0L3d5G0WoDHs8N7VWggP77g8v/f5m+xHbfN9a/wYjV8bjYOFvzTbPHqzFhnLw3a9fL8za+YRxNh2ow==
-  dependencies:
-    "@isaacs/ttlcache" "^1.4.1"
-    "@river-build/dlog" "^0.0.189"
-    "@river-build/generated" "^0.0.189"
-    abitype "^0.9.10"
-    debug "^4.3.4"
-    ethers "^5.7.2"
-    lodash "^4.17.21"
-    lru-cache "^11.0.1"
-    nanoid "^4.0.0"
-    viem "^2.21.51"
-    zod "^3.21.4"
-
 "@rollup/rollup-android-arm-eabi@4.38.0":
   version "4.38.0"
   resolved "https://registry.yarnpkg.com/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.38.0.tgz#6ba67cc0f3a2d7e3a208256a349c2cb2798f57be"
@@ -1325,6 +1179,89 @@
   dependencies:
     "@noble/hashes" "~1.7.1"
     "@scure/base" "~1.2.4"
+
+"@towns-protocol/dlog@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/dlog/-/dlog-0.0.195.tgz#1df23c8be2170c891f04f403eec23d71eef9215b"
+  integrity sha512-iiJjfayz24c6ralCXhifqASiPlug+kKimnAKbvbml1Bq8GfUSWfCBEyPzVjaPBv/XX736J3IB4DQH1KaO9zk4g==
+  dependencies:
+    "@bufbuild/protobuf" "^2.2.2"
+    "@towns-protocol/proto" "^0.0.195"
+    browser-or-node "^3.0.0"
+    debug "^4.3.4"
+    ethereum-cryptography "^1.2.0"
+
+"@towns-protocol/encryption@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/encryption/-/encryption-0.0.195.tgz#08ecf3f33553f91d018d7b87615c138b894e6394"
+  integrity sha512-7o80OlutNDpDuTn5T1qkjveUqSI5RZUzmED/uu6EUyvTtWCl1O6eYX6fIqls6iiaNu+H9QsPdfNBSl72EBKBLQ==
+  dependencies:
+    "@bufbuild/protobuf" "^2.2.2"
+    "@ethereumjs/util" "^8.0.1"
+    "@matrix-org/olm" "^3.2.15"
+    "@towns-protocol/dlog" "^0.0.195"
+    "@towns-protocol/proto" "^0.0.195"
+    "@towns-protocol/web3" "^0.0.195"
+    debug "^4.3.4"
+    dexie "^4.0.7"
+    ethers "^5.7.2"
+    lru-cache "^11.0.1"
+    nanoid "^4.0.0"
+    typed-emitter "^2.1.0"
+
+"@towns-protocol/generated@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/generated/-/generated-0.0.195.tgz#a3c971a0dfdfbd819be16572b4ebd98eee485300"
+  integrity sha512-cx+cMigdSxp4sCzdAr2QdaJojjWtYwkgyvzL4K80UET/u6fDpbtcxyuSfOuFmIyBigGTfjMX2Kw1jGcIzVSZsQ==
+
+"@towns-protocol/proto@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/proto/-/proto-0.0.195.tgz#8a6792f6d19a35936f4ec0b5121f1a139324edd8"
+  integrity sha512-QuqdpYgL1LiRTvVq2aIEfUXZVhuBVFHLtFKKTKkMz1lkbCCqCR1II1C0FRioCsYiu9jsV4r/5bR4Aar3RZLXtA==
+  dependencies:
+    "@bufbuild/protobuf" "^2.2.2"
+
+"@towns-protocol/sdk@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/sdk/-/sdk-0.0.195.tgz#dad7ed96adb97c54b79f46b9452057deccb020d7"
+  integrity sha512-724kOmYLqRSehQOiWocchkpHRGut1FoWFtCzg/Hk5w4EV+Q2rSp2jBdny6Beh/4BROold4aQEpXVUpLytJjk4g==
+  dependencies:
+    "@bufbuild/protobuf" "^2.2.2"
+    "@connectrpc/connect" "^2.0.0"
+    "@connectrpc/connect-node" "^2.0.0"
+    "@connectrpc/connect-web" "^2.0.0"
+    "@ethereumjs/util" "^8.0.1"
+    "@towns-protocol/dlog" "^0.0.195"
+    "@towns-protocol/encryption" "^0.0.195"
+    "@towns-protocol/generated" "^0.0.195"
+    "@towns-protocol/proto" "^0.0.195"
+    "@towns-protocol/web3" "^0.0.195"
+    browser-or-node "^3.0.0"
+    debug "^4.3.4"
+    dexie "^4.0.7"
+    ethereum-cryptography "^1.2.0"
+    ethers "^5.7.2"
+    lodash "^4.17.21"
+    nanoid "^4.0.0"
+    p-limit "^6.1.0"
+    vitest "3.0.5"
+
+"@towns-protocol/web3@^0.0.195":
+  version "0.0.195"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/web3/-/web3-0.0.195.tgz#bc8b41f1fb341a8a4fce0ff16687fd7ee5696349"
+  integrity sha512-f/Fe0N0GaMfdCm4JvvkE5eHJ7Iygf0d9isWHY8gauoxRKC4btpwa+/fF6gtjx+wq6movVNUZDQ2qZ4+Piy//mg==
+  dependencies:
+    "@isaacs/ttlcache" "^1.4.1"
+    "@towns-protocol/dlog" "^0.0.195"
+    "@towns-protocol/generated" "^0.0.195"
+    abitype "^0.9.10"
+    debug "^4.3.4"
+    ethers "^5.7.2"
+    lodash "^4.17.21"
+    lru-cache "^11.0.1"
+    nanoid "^4.0.0"
+    viem "^2.21.51"
+    zod "^3.21.4"
 
 "@types/estree@1.0.7":
   version "1.0.7"

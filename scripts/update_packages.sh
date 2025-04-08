@@ -1,2 +1,7 @@
-yarn upgrade @river-build/proto@latest @river-build/sdk@latest @river-build/web3@latest @river-build/dlog @river-build/encryption
-
+yarn upgrade \
+  @towns-protocol/dlog@latest \
+  @towns-protocol/encryption@latest \
+  @towns-protocol/proto@latest \
+  @towns-protocol/sdk@latest \
+  @towns-protocol/web3@latest
+  

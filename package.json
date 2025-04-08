@@ -7,11 +7,11 @@
   "license": "MIT",
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.2",
-    "@river-build/dlog": "^0.0.164",
-    "@river-build/encryption": "^0.0.164",
-    "@river-build/proto": "^0.0.189",
-    "@river-build/sdk": "^0.0.189",
-    "@river-build/web3": "^0.0.189",
+    "@towns-protocol/dlog": "^0.0.195",
+    "@towns-protocol/encryption": "^0.0.195",
+    "@towns-protocol/proto": "^0.0.195",
+    "@towns-protocol/sdk": "^0.0.195",
+    "@towns-protocol/web3": "^0.0.195",
     "dotenv": "^16.4.7",
     "ethereum-cryptography": "^3.0.0",
     "ethers": "5.7.2"

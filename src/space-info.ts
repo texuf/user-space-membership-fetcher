@@ -6,21 +6,21 @@ import {
   StreamAndCookie,
   StreamAndCookieSchema,
   StreamEventSchema,
-} from "@river-build/proto";
+} from "@towns-protocol/proto";
 import {
   makeRiverConfig,
   makeStreamRpcClient,
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
   SpaceIdFromSpaceAddress,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";

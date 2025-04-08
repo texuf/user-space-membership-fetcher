@@ -7,15 +7,14 @@ import {
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
-} from "@river-build/sdk";
+} from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
-} from "@river-build/web3";
+} from "@towns-protocol/web3";
 import * as dotenv from "dotenv";
-
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
