@@ -1,5 +1,5 @@
-import { toJsonString } from "@bufbuild/protobuf";
-import { StreamEventSchema } from "@towns-protocol/proto";
+import { toBinary, toJsonString } from "@bufbuild/protobuf";
+import { GetStreamResponseSchema, StreamEventSchema } from "@towns-protocol/proto";
 import {
   isChannelStreamId,
   isPersistedEvent,
@@ -65,6 +65,12 @@ const run = async () => {
   const response = await riverRpcProvider.getStream({
     streamId: streamIdAsBytes(param),
   });
+
+  const byteLength = toBinary(GetStreamResponseSchema, response).byteLength;
+  // print size in mb
+  const mb = byteLength / 1024 / 1024;
+  console.log("Response size:", mb.toFixed(2), "MB");
+
 
   const headerSizes = response.stream?.miniblocks.map((m) => {
     return m.header?.event.byteLength ?? 0;
