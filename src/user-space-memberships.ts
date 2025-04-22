@@ -121,13 +121,13 @@ const run = async () => {
     }
   }
 
-  for (const streamId of Object.keys(
-    streamView.userContent.streamMemberships
-  )) {
-    if (isChannelStreamId(streamId)) {
-      console.log(streamId);
-    }
-  }
+  // for (const streamId of Object.keys(
+  //   streamView.userContent.streamMemberships
+  // )) {
+  //   if (isChannelStreamId(streamId)) {
+  //     console.log(streamId);
+  //   }
+  // }
 
   const joined = Object.entries(streamView.userContent.streamMemberships)
     .filter(
@@ -139,9 +139,9 @@ const run = async () => {
 
   console.log("User Memberships:");
   console.log(joined);
-  for (const streamId of joined) {
-    await loadStream(streamId, riverRegistry, riverRpcProvider);
-  }
+  // for (const streamId of joined) {
+  //   await loadStream(streamId, riverRegistry, riverRpcProvider);
+  // }
 
   for (const streamId of [
     userStreamId,
@@ -152,12 +152,31 @@ const run = async () => {
     console.log("================");
     console.log(streamId);
     try {
-      const stream = await riverRpcProvider.getStream({
+      const response = await riverRpcProvider.getStream({
         streamId: streamIdAsBytes(streamId),
       });
       const unpackedResponse = await unpackStream(response.stream, undefined);
       console.log("pool size", unpackedResponse.streamAndCookie.events.length);
       console.log("success");
+      const streamView = new StreamStateView("0", streamId);
+      streamView.initialize(
+        unpackedResponse.streamAndCookie.nextSyncCookie,
+        unpackedResponse.streamAndCookie.events,
+        unpackedResponse.snapshot,
+        unpackedResponse.streamAndCookie.miniblocks,
+        [],
+        unpackedResponse.prevSnapshotMiniblockNum,
+        undefined,
+        [],
+        undefined
+      );
+      if (streamId === userStreamId) {
+        console.log(
+          "received/sent",
+          streamView.userContent.tipsReceived,
+          streamView.userContent.tipsSent
+        );
+      }
     } catch (e) {
       console.error("failed", streamId, e);
     }
