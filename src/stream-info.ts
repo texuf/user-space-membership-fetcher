@@ -20,6 +20,10 @@ import {
   SpaceDapp,
 } from "@towns-protocol/web3";
 
+const bytesToMB = (bytes: number): number => {
+  return bytes / 1024 / 1024;
+};
+
 const run = async () => {
   const env = process.env.ENV ?? "omega";
   const nodeIndex = process.env.NODE_INDEX
@@ -84,26 +88,28 @@ const run = async () => {
 
   const byteLength = toBinary(GetStreamResponseSchema, response).byteLength;
   // print size in mb
-  const mb = byteLength / 1024 / 1024;
+  const mb = bytesToMB(byteLength);
   console.log("Response size:", mb.toFixed(2), "MB");
 
-  const headerSizes = response.stream?.miniblocks.map((m) => {
-    return m.header?.event.byteLength ?? 0;
-  });
-  console.log("header sizes", headerSizes);
-  const headerSize = response.stream?.miniblocks.reduce((acc, curr) => {
-    return acc + (curr.header?.event.byteLength ?? 0);
-  }, 0);
-  console.log("header size", headerSize);
-  const eventSize = response.stream?.miniblocks.reduce((acc, curr) => {
-    return (
-      acc +
-      curr.events.reduce((acc, curr) => {
-        return acc + (curr.event.byteLength ?? 0);
-      }, 0)
-    );
-  }, 0);
-  console.log("event size", eventSize);
+  if (response.stream) {
+    const headerSizes = response.stream.miniblocks.map((m) => {
+      return m.header?.event.byteLength ?? 0;
+    });
+    console.log("header sizes", headerSizes); // Note: This is still in bytes
+    const headerSize = response.stream.miniblocks.reduce((acc, curr) => {
+      return acc + (curr.header?.event.byteLength ?? 0);
+    }, 0);
+    console.log("header size", bytesToMB(headerSize).toFixed(2), "MB");
+    const eventSize = response.stream.miniblocks.reduce((acc, curr) => {
+      return (
+        acc +
+        curr.events.reduce((acc, curr) => {
+          return acc + (curr.event.byteLength ?? 0);
+        }, 0)
+      );
+    }, 0);
+    console.log("event size", bytesToMB(eventSize).toFixed(2), "MB");
+  }
 
   const unpackedResponse = await unpackStream(response.stream, undefined);
   const streamView = new StreamStateView("0", param);
