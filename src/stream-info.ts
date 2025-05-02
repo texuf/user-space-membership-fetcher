@@ -1,4 +1,5 @@
 import { toBinary, toJsonString } from "@bufbuild/protobuf";
+import fs from "fs";
 import {
   GetStreamResponseSchema,
   StreamEventSchema,
@@ -86,10 +87,16 @@ const run = async () => {
     { timeoutMs: 120000 }
   );
 
-  const byteLength = toBinary(GetStreamResponseSchema, response).byteLength;
+  const binStreamResponse = toBinary(GetStreamResponseSchema, response);
+  const byteLength = binStreamResponse.byteLength;
   // print size in mb
   const mb = bytesToMB(byteLength);
   console.log("Response size:", mb.toFixed(2), "MB");
+
+  // save to file
+  const filename = `temp/stream-response-${new Date().toISOString()}.bin`;
+  fs.writeFileSync(filename, binStreamResponse);
+  console.log(`Saved stream response to ${filename}`);
 
   if (response.stream) {
     const headerSizes = response.stream.miniblocks.map((m) => {
