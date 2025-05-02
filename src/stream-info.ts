@@ -1,5 +1,8 @@
 import { toBinary, toJsonString } from "@bufbuild/protobuf";
-import { GetStreamResponseSchema, StreamEventSchema } from "@towns-protocol/proto";
+import {
+  GetStreamResponseSchema,
+  StreamEventSchema,
+} from "@towns-protocol/proto";
 import {
   isChannelStreamId,
   isPersistedEvent,
@@ -19,6 +22,9 @@ import {
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";
+  const nodeIndex = process.env.NODE_INDEX
+    ? parseInt(process.env.NODE_INDEX)
+    : 0;
   // Get the wallet address from the command line arguments
   const param = process.argv[2];
   if (!param) {
@@ -50,27 +56,36 @@ const run = async () => {
 
   console.log("Stream:");
   console.log(JSON.stringify(streamStruct, undefined, 2));
-  console.log("Node:");
-  const node = await riverRegistry.nodeRegistry.read.getNode(
-    streamStruct.nodes[0]
+  console.log("Nodes:");
+  const nodes = await Promise.all(
+    streamStruct.nodes.map((x) => riverRegistry.nodeRegistry.read.getNode(x))
   );
-  console.log(JSON.stringify(node, undefined, 2));
+  console.log(JSON.stringify(nodes, undefined, 2));
+  const node = nodes[nodeIndex];
 
-  //const urlsStr = await riverRegistry.getOperationalNodeUrls();
-  //const urls = urlsStr.split(",");
   const rpcUrl = node.url;
-  const riverRpcProvider = makeStreamRpcClient(rpcUrl);
+  console.log("Connecting to URL:", rpcUrl);
+  const riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
+    retryParams: {
+      maxAttempts: 3,
+      initialRetryDelay: 2000,
+      maxRetryDelay: 6000,
+      defaultTimeoutMs: 120000, // 30 seconds for long running requests
+    },
+  });
 
   // fetch the user stream
-  const response = await riverRpcProvider.getStream({
-    streamId: streamIdAsBytes(param),
-  });
+  const response = await riverRpcProvider.getStream(
+    {
+      streamId: streamIdAsBytes(param),
+    },
+    { timeoutMs: 120000 }
+  );
 
   const byteLength = toBinary(GetStreamResponseSchema, response).byteLength;
   // print size in mb
   const mb = byteLength / 1024 / 1024;
   console.log("Response size:", mb.toFixed(2), "MB");
-
 
   const headerSizes = response.stream?.miniblocks.map((m) => {
     return m.header?.event.byteLength ?? 0;
