@@ -24,6 +24,8 @@ import {
   SpaceDapp,
 } from "@towns-protocol/web3";
 
+const bListSpaceNames = false;
+
 const run = async () => {
   const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
@@ -115,9 +117,23 @@ const run = async () => {
   for (const streamId of Object.keys(
     streamView.userContent.streamMemberships
   )) {
-    if (isSpaceStreamId(streamId)) {
+    if (
+      isSpaceStreamId(streamId) &&
+      streamView.userContent.streamMemberships[streamId].op ===
+        MembershipOp.SO_JOIN
+    ) {
       const address = SpaceAddressFromSpaceId(streamId);
-      console.log(address);
+      if (bListSpaceNames) {
+        const space = await spaceDapp.getSpace(streamId);
+        if (space) {
+          const spaceInfo = await space.getSpaceInfo();
+          console.log(address, spaceInfo.name);
+        } else {
+          console.log(address);
+        }
+      } else {
+        console.log(address);
+      }
     }
   }
 
@@ -152,6 +168,17 @@ const run = async () => {
     console.log("================");
     console.log(streamId);
     try {
+      const streamStruct = await riverRegistry.getStream(
+        streamIdAsBytes(streamId)
+      );
+      const nodes = await Promise.all(
+        streamStruct.nodes.map((x) =>
+          riverRegistry.nodeRegistry.read.getNode(x)
+        )
+      );
+      for (const node of nodes) {
+        console.log(node.url);
+      }
       const response = await riverRpcProvider.getStream({
         streamId: streamIdAsBytes(streamId),
       });
@@ -174,7 +201,9 @@ const run = async () => {
         console.log(
           "received/sent",
           streamView.userContent.tipsReceived,
-          streamView.userContent.tipsSent
+          streamView.userContent.tipsReceivedCount,
+          streamView.userContent.tipsSent,
+          streamView.userContent.tipsSentCount
         );
       }
     } catch (e) {

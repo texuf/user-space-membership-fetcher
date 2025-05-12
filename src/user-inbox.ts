@@ -9,9 +9,11 @@ import {
   makeUserMetadataStreamId,
   makeUserSettingsStreamId,
   makeUserStreamId,
+  ParsedEvent,
   streamIdAsBytes,
   streamIdAsString,
   StreamStateView,
+  unpackMiniblock,
   unpackStream,
 } from "@towns-protocol/sdk";
 import {
@@ -63,49 +65,72 @@ const run = async () => {
   const riverRpcProvider = makeStreamRpcClient(rpcUrl);
 
   // fetch the user stream
-  const response = await riverRpcProvider.getStream({
-    streamId: streamIdAsBytes(userInboxStreamId),
+  // const response = await riverRpcProvider.getStream({
+  //   streamId: streamIdAsBytes(userInboxStreamId),
+  // });
+
+  // const unpackedResponse = await unpackStream(response.stream, undefined);
+  // const streamView = new StreamStateView("0", userInboxStreamId);
+  // streamView.initialize(
+  //   unpackedResponse.streamAndCookie.nextSyncCookie,
+  //   unpackedResponse.streamAndCookie.events,
+  //   unpackedResponse.snapshot,
+  //   unpackedResponse.streamAndCookie.miniblocks,
+  //   [],
+  //   unpackedResponse.prevSnapshotMiniblockNum,
+  //   undefined,
+  //   [],
+  //   undefined
+  // );
+  // for (const event of streamView.timeline) {
+  //   const payload = event.remoteEvent?.event.payload;
+  //   printUserInboxEvent(event?.remoteEvent);
+  // }
+
+  const streamId = streamIdAsBytes(userInboxStreamId);
+  const response1 = await riverRpcProvider.getLastMiniblockHash({ streamId });
+  const { miniblockNum } = response1;
+  const blocks = await riverRpcProvider.getMiniblocks({
+    streamId,
+    fromInclusive: miniblockNum - 500n,
+    toExclusive: miniblockNum,
   });
 
-  const unpackedResponse = await unpackStream(response.stream, undefined);
-  const streamView = new StreamStateView("0", userInboxStreamId);
-  streamView.initialize(
-    unpackedResponse.streamAndCookie.nextSyncCookie,
-    unpackedResponse.streamAndCookie.events,
-    unpackedResponse.snapshot,
-    unpackedResponse.streamAndCookie.miniblocks,
-    [],
-    unpackedResponse.prevSnapshotMiniblockNum,
-    undefined,
-    [],
-    undefined
-  );
-  for (const event of streamView.timeline) {
-    const payload = event.remoteEvent?.event.payload;
-    if (payload?.case !== "userInboxPayload") {
-      continue;
-    }
-    const content = payload.value.content;
-    switch (content?.case) {
-      case "inception":
-        break;
-      case "groupEncryptionSessions":
-        console.log(
-          "groupEncryptionSessions",
-          streamIdAsString(content.value.streamId),
-          Object.keys(content.value.ciphertexts),
-          content.value.sessionIds,
-          parseGroupEncryptionAlgorithmId(content.value.algorithm).value
-        );
-        break;
-      case "ack":
-        break;
-      case undefined:
-        break;
-      default:
-        break;
+  for (const block of blocks.miniblocks) {
+    const unpacked = await unpackMiniblock(block, {
+      disableHashValidation: true,
+      disableSignatureValidation: true,
+    });
+    for (const event of unpacked.events) {
+      printUserInboxEvent(event);
     }
   }
+};
+
+const printUserInboxEvent = (event?: ParsedEvent) => {
+  if (!event) {
+    return;
+  }
+  const payload = event.event.payload;
+  if (payload?.case !== "userInboxPayload") {
+    return;
+  }
+  const content = payload.value.content;
+  if (content?.case !== "groupEncryptionSessions") {
+    return;
+  }
+
+  const timestamp = event.event.createdAtEpochMs;
+  const timestampReadable = new Date(Number(timestamp)).toISOString();
+  console.log(
+    "groupEncryptionSessions",
+    timestampReadable,
+    `from: ${event.creatorUserId}`,
+    streamIdAsString(content.value.streamId),
+    Object.keys(content.value.ciphertexts),
+    content.value.sessionIds,
+    parseGroupEncryptionAlgorithmId(content.value.algorithm).value
+  );
 };
 
 run()
