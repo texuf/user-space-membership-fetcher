@@ -31,7 +31,8 @@ import {
 import { utils } from "ethers";
 import { bin_toHexString } from "@towns-protocol/dlog";
 
-const printMembers = true;
+const printMembers = false;
+const printMiniblockHeaders = true;
 
 const bytesToMB = (bytes: number): number => {
   return bytes / 1024 / 1024;
@@ -218,59 +219,58 @@ const run = async () => {
     console.log("space address", SpaceAddressFromSpaceId(spaceId));
   }
 
-  // console.log("Stream Info:");
-  // console.log(unpackedResponse);
-  // console.log(
-  //   unpackedResponse.streamAndCookie.miniblocks.map((m) =>
-  //     m.events
-  //       .filter(
-  //         (e) =>
-  //           isPersistedEvent(e, "backward") &&
-  //           e.event.payload.case !== "miniblockHeader"
-  //       )
-  //       .map((e) =>
-  //         toJsonString(StreamEventSchema, e.event, { prettySpaces: 2 })
-  //       )
-  //   )
-  // );
-
-  console.log("Stream events");
+  console.log("======== Stream events =========");
   for (const mb of unpackedResponse.streamAndCookie.miniblocks) {
     //const header = mb.header?.miniblockNum;
     //console.log("miniblock", header);
     for (const event of mb.events) {
       const streamEvent = event.event;
-      if (streamEvent.payload.case === "miniblockHeader") {
-        continue;
-      }
-      const userId = userIdFromAddress(streamEvent.creatorAddress);
-      // timestamp in readable format
-      const timestamp = new Date(
-        Number(streamEvent.createdAtEpochMs)
-      ).toISOString();
-      const content = toEvent(
-        makeRemoteTimelineEvent({
-          parsedEvent: event,
-          eventNum: 0n,
-          miniblockNum: 0n,
-        }),
-        userId
-      ).content;
-      const fallbackContent = content
-        ? getFallbackContent(userId, content)
-        : "undefined";
-      console.log(
-        "event",
-        userId,
-        timestamp,
-        streamEvent.payload.case,
-        streamEvent.payload.value?.content.case,
-        fallbackContent
-      );
-      specialPrint(streamEvent);
+      printStreamEventDetails(event, streamEvent);
     }
   }
+
+  console.log("======== Minipool events =========");
+  for (const event of unpackedResponse.streamAndCookie.events) {
+    printStreamEventDetails(event, event.event);
+  }
 };
+
+function printStreamEventDetails(
+  parsedEventData: any, // Consider defining a more specific type if available
+  streamEvent: StreamEvent
+) {
+  if (
+    streamEvent.payload.case === "miniblockHeader" &&
+    !printMiniblockHeaders
+  ) {
+    return; // Use return instead of continue
+  }
+  const userId = userIdFromAddress(streamEvent.creatorAddress);
+  // timestamp in readable format
+  const timestamp = new Date(
+    Number(streamEvent.createdAtEpochMs)
+  ).toISOString();
+  const content = toEvent(
+    makeRemoteTimelineEvent({
+      parsedEvent: parsedEventData,
+      eventNum: 0n,
+      miniblockNum: 0n,
+    }),
+    userId
+  ).content;
+  const fallbackContent = content
+    ? getFallbackContent(userId, content)
+    : "undefined";
+  console.log(
+    "event",
+    userId,
+    timestamp,
+    streamEvent.payload.case,
+    streamEvent.payload.value?.content.case,
+    fallbackContent
+  );
+  specialPrint(streamEvent);
+}
 
 run()
   .then(() => process.exit(0))
