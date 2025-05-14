@@ -229,9 +229,11 @@ const run = async () => {
     }
   }
 
-  console.log("======== Minipool events =========");
-  for (const event of unpackedResponse.streamAndCookie.events) {
-    printStreamEventDetails(event, event.event);
+  if (unpackedResponse.streamAndCookie.events.length > 0) {
+    console.log("======== Minipool events =========");
+    for (const event of unpackedResponse.streamAndCookie.events) {
+      printStreamEventDetails(event, event.event);
+    }
   }
 };
 
