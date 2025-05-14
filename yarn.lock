@@ -1180,28 +1180,27 @@
     "@noble/hashes" "~1.7.1"
     "@scure/base" "~1.2.4"
 
-"@towns-protocol/dlog@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/dlog/-/dlog-0.0.195.tgz#1df23c8be2170c891f04f403eec23d71eef9215b"
-  integrity sha512-iiJjfayz24c6ralCXhifqASiPlug+kKimnAKbvbml1Bq8GfUSWfCBEyPzVjaPBv/XX736J3IB4DQH1KaO9zk4g==
+"@towns-protocol/dlog@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/dlog/-/dlog-0.0.220.tgz#451cc40ba0a50f638533ec1f3c88ed88177629fc"
+  integrity sha512-BD1dMeAfHki/9/f3YlWRAxv00hSMyBRGRQCHXItv1YeP8pZ9YT7gP/lExjb5A8wdyjQ8ZkH1LUWxIiSLMwZ+Kw==
   dependencies:
     "@bufbuild/protobuf" "^2.2.2"
-    "@towns-protocol/proto" "^0.0.195"
-    browser-or-node "^3.0.0"
+    "@towns-protocol/proto" "^0.0.220"
     debug "^4.3.4"
     ethereum-cryptography "^1.2.0"
 
-"@towns-protocol/encryption@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/encryption/-/encryption-0.0.195.tgz#08ecf3f33553f91d018d7b87615c138b894e6394"
-  integrity sha512-7o80OlutNDpDuTn5T1qkjveUqSI5RZUzmED/uu6EUyvTtWCl1O6eYX6fIqls6iiaNu+H9QsPdfNBSl72EBKBLQ==
+"@towns-protocol/encryption@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/encryption/-/encryption-0.0.220.tgz#b859abb43e7c57511083c671669a0495c3ef5850"
+  integrity sha512-8td44r68mJXgJBH0bz455XyIrXp4bZh8uTPdFXRdu1VPMyICh9LCLFGRkQbvdSfkySkWY+M7WagAsuMFEyVb3w==
   dependencies:
     "@bufbuild/protobuf" "^2.2.2"
     "@ethereumjs/util" "^8.0.1"
     "@matrix-org/olm" "^3.2.15"
-    "@towns-protocol/dlog" "^0.0.195"
-    "@towns-protocol/proto" "^0.0.195"
-    "@towns-protocol/web3" "^0.0.195"
+    "@towns-protocol/dlog" "^0.0.220"
+    "@towns-protocol/proto" "^0.0.220"
+    "@towns-protocol/web3" "^0.0.220"
     debug "^4.3.4"
     dexie "^4.0.7"
     ethers "^5.7.2"
@@ -1209,33 +1208,33 @@
     nanoid "^4.0.0"
     typed-emitter "^2.1.0"
 
-"@towns-protocol/generated@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/generated/-/generated-0.0.195.tgz#a3c971a0dfdfbd819be16572b4ebd98eee485300"
-  integrity sha512-cx+cMigdSxp4sCzdAr2QdaJojjWtYwkgyvzL4K80UET/u6fDpbtcxyuSfOuFmIyBigGTfjMX2Kw1jGcIzVSZsQ==
+"@towns-protocol/generated@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/generated/-/generated-0.0.220.tgz#331142af03783fb71619863e94abd11bb91a8dfa"
+  integrity sha512-4K0sFGJo4xCSyn38vnMl3WoaOz6l1BAoiSflLS1gw0hxfim0Qq+KsAD9OxBtT3tFnujvu94e1alcIe6Av6fs6g==
 
-"@towns-protocol/proto@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/proto/-/proto-0.0.195.tgz#8a6792f6d19a35936f4ec0b5121f1a139324edd8"
-  integrity sha512-QuqdpYgL1LiRTvVq2aIEfUXZVhuBVFHLtFKKTKkMz1lkbCCqCR1II1C0FRioCsYiu9jsV4r/5bR4Aar3RZLXtA==
+"@towns-protocol/proto@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/proto/-/proto-0.0.220.tgz#460738536678559eba8083ff2117cb5585fa0def"
+  integrity sha512-NcSUmxQ0iABm5neuB6IFPQtNCOrEVHaYIw0lSTo0bPGEdVrlwLye7mfKfaDQtvLKM9/np3PjyzznSQtEu15aDA==
   dependencies:
     "@bufbuild/protobuf" "^2.2.2"
 
-"@towns-protocol/sdk@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/sdk/-/sdk-0.0.195.tgz#dad7ed96adb97c54b79f46b9452057deccb020d7"
-  integrity sha512-724kOmYLqRSehQOiWocchkpHRGut1FoWFtCzg/Hk5w4EV+Q2rSp2jBdny6Beh/4BROold4aQEpXVUpLytJjk4g==
+"@towns-protocol/sdk@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/sdk/-/sdk-0.0.220.tgz#8b9216eb3ba0a3ead92cd86ed67ffb39829c13dd"
+  integrity sha512-E6i17uBN8Z1igvAE0prN6b+6oJ9il0yDMWS9q60xAHXLRFh/8wWUj75on6iVhyg0+YAbbKhsUwVpYrPmbz1SqQ==
   dependencies:
     "@bufbuild/protobuf" "^2.2.2"
     "@connectrpc/connect" "^2.0.0"
     "@connectrpc/connect-node" "^2.0.0"
     "@connectrpc/connect-web" "^2.0.0"
     "@ethereumjs/util" "^8.0.1"
-    "@towns-protocol/dlog" "^0.0.195"
-    "@towns-protocol/encryption" "^0.0.195"
-    "@towns-protocol/generated" "^0.0.195"
-    "@towns-protocol/proto" "^0.0.195"
-    "@towns-protocol/web3" "^0.0.195"
+    "@towns-protocol/dlog" "^0.0.220"
+    "@towns-protocol/encryption" "^0.0.220"
+    "@towns-protocol/generated" "^0.0.220"
+    "@towns-protocol/proto" "^0.0.220"
+    "@towns-protocol/web3" "^0.0.220"
     browser-or-node "^3.0.0"
     debug "^4.3.4"
     dexie "^4.0.7"
@@ -1246,14 +1245,14 @@
     p-limit "^6.1.0"
     vitest "3.0.5"
 
-"@towns-protocol/web3@^0.0.195":
-  version "0.0.195"
-  resolved "https://registry.yarnpkg.com/@towns-protocol/web3/-/web3-0.0.195.tgz#bc8b41f1fb341a8a4fce0ff16687fd7ee5696349"
-  integrity sha512-f/Fe0N0GaMfdCm4JvvkE5eHJ7Iygf0d9isWHY8gauoxRKC4btpwa+/fF6gtjx+wq6movVNUZDQ2qZ4+Piy//mg==
+"@towns-protocol/web3@^0.0.220":
+  version "0.0.220"
+  resolved "https://registry.yarnpkg.com/@towns-protocol/web3/-/web3-0.0.220.tgz#88e705115a23d83164f7060b1b3ba0db0f9f7dda"
+  integrity sha512-L4r4ptr53YedmXvEvmvHsQbZsSwgGcsBoNYQwdu7zoJsQus/DR2Q/zgY8xzWdyKJ0ghbklUj4NpoJlb5gbDUuw==
   dependencies:
     "@isaacs/ttlcache" "^1.4.1"
-    "@towns-protocol/dlog" "^0.0.195"
-    "@towns-protocol/generated" "^0.0.195"
+    "@towns-protocol/dlog" "^0.0.220"
+    "@towns-protocol/generated" "^0.0.220"
     abitype "^0.9.10"
     debug "^4.3.4"
     ethers "^5.7.2"

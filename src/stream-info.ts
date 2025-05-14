@@ -18,7 +18,7 @@ import {
   spaceIdFromChannelId,
   streamIdAsBytes,
   StreamStateView,
-  toEvent,
+  toEventSA,
   unpackStream,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
@@ -250,7 +250,7 @@ function printStreamEventDetails(
   const timestamp = new Date(
     Number(streamEvent.createdAtEpochMs)
   ).toISOString();
-  const content = toEvent(
+  const content = toEventSA(
     makeRemoteTimelineEvent({
       parsedEvent: parsedEventData,
       eventNum: 0n,
