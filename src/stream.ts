@@ -42,87 +42,87 @@ const bytesToMB = (bytes: number): number => {
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";
-  const loadFileName = process.env.FILENAME ?? undefined;
+  //const loadFileName = process.env.FILENAME ?? undefined;
   let response: GetStreamResponse;
   let param: string;
 
-  if (loadFileName) {
-    const file = fs.readFileSync(loadFileName);
-    console.log("file size", file.length);
-    response = fromBinary(GetStreamResponseSchema, file);
-    console.log("file", file);
-    param = loadFileName.split("/")[1]?.split("-").at(0) ?? "";
-  } else {
-    const nodeIndex = process.env.NODE_INDEX
-      ? parseInt(process.env.NODE_INDEX)
-      : 0;
-    // Get the wallet address from the command line arguments
-    param = process.argv[2];
-    if (!param) {
-      console.error("no stream id provided");
-      process.exit(1);
-    }
-    console.log(`Running stream-info for ${param} in ${env}`);
-
-    // make the config
-    const config = makeRiverConfig(env);
-
-    console.log(`Base rpc url: ${config.base.rpcUrl}`);
-    console.log(`River rpc url: ${config.river.rpcUrl}`);
-
-    // make a river provider
-    const riverRegistry = new RiverRegistry(
-      config.river.chainConfig,
-      new LocalhostWeb3Provider(config.river.rpcUrl)
-    );
-
-    // find nodes for the stream
-    const streamStruct = await riverRegistry.getStream(streamIdAsBytes(param));
-
-    console.log("Stream:");
-    console.log(JSON.stringify(streamStruct, undefined, 2));
-    console.log("Nodes:");
-    const nodes = await Promise.all(
-      streamStruct.nodes.map((x) => riverRegistry.nodeRegistry.read.getNode(x))
-    );
-    console.log(JSON.stringify(nodes, undefined, 2));
-    const node = nodes[nodeIndex];
-
-    const rpcUrl = node.url;
-    console.log("Connecting to URL:", rpcUrl);
-    const riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
-      retryParams: {
-        maxAttempts: 3,
-        initialRetryDelay: 2000,
-        maxRetryDelay: 6000,
-        defaultTimeoutMs: 120000, // 30 seconds for long running requests
-      },
-    });
-
-    // fetch the user stream
-    response = await riverRpcProvider.getStream(
-      {
-        streamId: streamIdAsBytes(param),
-      },
-      { timeoutMs: 120000 }
-    );
-
-    const binStreamResponse = toBinary(GetStreamResponseSchema, response);
-    const byteLength = binStreamResponse.byteLength;
-    // print size in mb
-    const mb = bytesToMB(byteLength);
-    console.log("Response size:", mb.toFixed(2), "MB");
-
-    // save to file
-    const filename = `temp/${param}-stream-${new Date()
-      .toISOString()
-      .replace(/:/g, "-")
-      .replace("T", "-")
-      .replace(".", "-")
-      .replace("/", "-")}.bin`;
-    fs.writeFileSync(filename, binStreamResponse);
-    console.log(`Saved stream response to ${filename}`);
+  // if (loadFileName) {
+  //   const file = fs.readFileSync(loadFileName);
+  //   console.log("file size", file.length);
+  //   response = fromBinary(GetStreamResponseSchema, file);
+  //   console.log("file", file);
+  //   param = loadFileName.split("/")[1]?.split("-").at(0) ?? "";
+  // } else {
+  const nodeIndex = process.env.NODE_INDEX
+    ? parseInt(process.env.NODE_INDEX)
+    : 0;
+  // Get the wallet address from the command line arguments
+  param = process.argv[2];
+  if (!param) {
+    console.error("no stream id provided");
+    process.exit(1);
   }
+  console.log(`Running stream-info for ${param} in ${env}`);
+
+  // make the config
+  const config = makeRiverConfig(env);
+
+  console.log(`Base rpc url: ${config.base.rpcUrl}`);
+  console.log(`River rpc url: ${config.river.rpcUrl}`);
+
+  // make a river provider
+  const riverRegistry = new RiverRegistry(
+    config.river.chainConfig,
+    new LocalhostWeb3Provider(config.river.rpcUrl)
+  );
+
+  // find nodes for the stream
+  const streamStruct = await riverRegistry.getStream(streamIdAsBytes(param));
+
+  console.log("Stream:");
+  console.log(JSON.stringify(streamStruct, undefined, 2));
+  console.log("Nodes:");
+  const nodes = await Promise.all(
+    streamStruct.nodes.map((x) => riverRegistry.nodeRegistry.read.getNode(x))
+  );
+  console.log(JSON.stringify(nodes, undefined, 2));
+  const node = nodes[nodeIndex];
+
+  const rpcUrl = node.url;
+  console.log("Connecting to URL:", rpcUrl);
+  const riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
+    retryParams: {
+      maxAttempts: 3,
+      initialRetryDelay: 2000,
+      maxRetryDelay: 6000,
+      defaultTimeoutMs: 120000, // 30 seconds for long running requests
+    },
+  });
+
+  // fetch the user stream
+  response = await riverRpcProvider.getStream(
+    {
+      streamId: streamIdAsBytes(param),
+    },
+    { timeoutMs: 120000 }
+  );
+
+  const binStreamResponse = toBinary(GetStreamResponseSchema, response);
+  const byteLength = binStreamResponse.byteLength;
+  // print size in mb
+  const mb = bytesToMB(byteLength);
+  console.log("Response size:", mb.toFixed(2), "MB");
+
+  // save to file
+  const filename = `temp/${param}-stream-${new Date()
+    .toISOString()
+    .replace(/:/g, "-")
+    .replace("T", "-")
+    .replace(".", "-")
+    .replace("/", "-")}.bin`;
+  fs.writeFileSync(filename, binStreamResponse);
+  console.log(`Saved stream response to ${filename}`);
+  //}
   if (!response) {
     throw new Error("No response");
   }
@@ -219,7 +219,7 @@ const run = async () => {
     const toExclusive =
       unpackedResponse.streamAndCookie.miniblocks[0].header.miniblockNum;
     const fromInclusive = toExclusive - BigInt(historicalBlocks);
-    const blocks = getMiniblocks(
+    const blocksResponse = await getMiniblocks(
       riverRpcProvider,
       param,
       fromInclusive,
@@ -227,6 +227,13 @@ const run = async () => {
       true,
       {}
     );
+    console.log("======== Historical events =========");
+    for (const mb of blocksResponse.miniblocks) {
+      //console.log("block", block.header?.miniblockNum);
+      for (const event of mb.events) {
+        printStreamEventDetails(event, event.event);
+      }
+    }
   }
 
   console.log("======== Stream events =========");
