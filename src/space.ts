@@ -38,7 +38,7 @@ const run = async () => {
     ? SpaceIdFromSpaceAddress(param2)
     : param2;
 
-  console.log(`Running stream-info for ${spaceAddress} ${streamId} in ${env}`);
+  console.log(`Running space-info for ${spaceAddress} ${streamId} in ${env}`);
 
   // make the config
   const config = makeRiverConfig(env);
@@ -60,7 +60,7 @@ const run = async () => {
     console.error("space not found");
     return;
   }
-  const spaceInfo = await space.getSpaceInfo();
+  const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
   console.log("Space:");
   console.log(JSON.stringify(spaceInfo, undefined, 2));
   const tokenUri = await spaceDapp.tokenURI(streamId);
@@ -68,9 +68,8 @@ const run = async () => {
   const memberTokenUri = await spaceDapp.memberTokenURI(streamId, "0");
   console.log("Member Token URI:", memberTokenUri);
 
-  const info = await spaceDapp.getSpaceInfo(streamId);
   console.log("Space Info:");
-  console.log(JSON.stringify(info, undefined, 2));
+  console.log(JSON.stringify(spaceInfo, undefined, 2));
 
   const channelInfo = await spaceDapp.getChannels(streamId);
   console.log("Channel Info:");

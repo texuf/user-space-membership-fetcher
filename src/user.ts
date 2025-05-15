@@ -124,9 +124,8 @@ const run = async () => {
     ) {
       const address = SpaceAddressFromSpaceId(streamId);
       if (bListSpaceNames) {
-        const space = await spaceDapp.getSpace(streamId);
-        if (space) {
-          const spaceInfo = await space.getSpaceInfo();
+        const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
+        if (spaceInfo) {
           console.log(address, spaceInfo.name);
         } else {
           console.log(address);
@@ -159,14 +158,14 @@ const run = async () => {
   //   await loadStream(streamId, riverRegistry, riverRpcProvider);
   // }
 
-  for (const streamId of [
-    userStreamId,
-    userSettingsStreamId,
-    userInboxStreamId,
-    userMetadataStreamId,
+  for (const [name, streamId] of [
+    ["user", userStreamId],
+    ["settings", userSettingsStreamId],
+    ["inbox", userInboxStreamId],
+    ["metadata", userMetadataStreamId],
   ]) {
     console.log("================");
-    console.log(streamId);
+    console.log(streamId, name);
     try {
       const streamStruct = await riverRegistry.getStream(
         streamIdAsBytes(streamId)

@@ -10,6 +10,7 @@ import {
 } from "@towns-protocol/proto";
 import {
   getFallbackContent,
+  getMiniblocks,
   isChannelStreamId,
   isPersistedEvent,
   makeRemoteTimelineEvent,
@@ -33,6 +34,7 @@ import { bin_toHexString } from "@towns-protocol/dlog";
 
 const printMembers = false;
 const printMiniblockHeaders = true;
+const historicalBlocks = 100;
 
 const bytesToMB = (bytes: number): number => {
   return bytes / 1024 / 1024;
@@ -67,12 +69,6 @@ const run = async () => {
 
     console.log(`Base rpc url: ${config.base.rpcUrl}`);
     console.log(`River rpc url: ${config.river.rpcUrl}`);
-
-    // make a space dapp
-    const spaceDapp = new SpaceDapp(
-      config.base.chainConfig,
-      new LocalhostWeb3Provider(config.base.rpcUrl)
-    );
 
     // make a river provider
     const riverRegistry = new RiverRegistry(
@@ -219,6 +215,20 @@ const run = async () => {
     console.log("space address", SpaceAddressFromSpaceId(spaceId));
   }
 
+  if (historicalBlocks > 0) {
+    const toExclusive =
+      unpackedResponse.streamAndCookie.miniblocks[0].header.miniblockNum;
+    const fromInclusive = toExclusive - BigInt(historicalBlocks);
+    const blocks = getMiniblocks(
+      riverRpcProvider,
+      param,
+      fromInclusive,
+      toExclusive,
+      true,
+      {}
+    );
+  }
+
   console.log("======== Stream events =========");
   for (const mb of unpackedResponse.streamAndCookie.miniblocks) {
     //const header = mb.header?.miniblockNum;
@@ -284,7 +294,11 @@ run()
 function specialPrint(event: StreamEvent) {
   switch (event.payload.case) {
     case "miniblockHeader":
-      console.log("miniblockHeader", event.payload.value?.miniblockNum);
+      console.log(
+        "miniblockHeader",
+        event.payload.value?.miniblockNum,
+        `events: ${event.payload.value?.eventHashes.length}`
+      );
       break;
     case "userPayload":
       {
