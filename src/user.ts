@@ -114,25 +114,29 @@ const run = async () => {
     undefined
   );
 
-  for (const streamId of Object.keys(
-    streamView.userContent.streamMemberships
-  )) {
-    if (
-      isSpaceStreamId(streamId) &&
-      streamView.userContent.streamMemberships[streamId].op ===
-        MembershipOp.SO_JOIN
-    ) {
-      const address = SpaceAddressFromSpaceId(streamId);
-      if (bListSpaceNames) {
-        const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
-        if (spaceInfo) {
-          console.log(address, spaceInfo.name);
-        } else {
-          console.log(address);
-        }
+  const joined = Object.entries(streamView.userContent.streamMemberships)
+    .filter(
+      (kv) =>
+        kv[1].op === MembershipOp.SO_JOIN &&
+        (isSpaceStreamId(kv[0]) || isChannelStreamId(kv[0]))
+    )
+    .map((kv) => kv[0]);
+
+  console.log("number of spaces", joined.filter(isSpaceStreamId).length);
+  console.log("number of channels", joined.filter(isChannelStreamId).length);
+  console.log("number of joined", joined.length);
+
+  for (const streamId of joined.filter(isSpaceStreamId)) {
+    const address = SpaceAddressFromSpaceId(streamId);
+    if (bListSpaceNames) {
+      const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
+      if (spaceInfo) {
+        console.log(address, spaceInfo.name);
       } else {
         console.log(address);
       }
+    } else {
+      console.log(address);
     }
   }
 
@@ -143,14 +147,6 @@ const run = async () => {
   //     console.log(streamId);
   //   }
   // }
-
-  const joined = Object.entries(streamView.userContent.streamMemberships)
-    .filter(
-      (kv) =>
-        kv[1].op === MembershipOp.SO_JOIN &&
-        (isSpaceStreamId(kv[0]) || isChannelStreamId(kv[0]))
-    )
-    .map((kv) => kv[0]);
 
   console.log("User Memberships:");
   console.log(joined);

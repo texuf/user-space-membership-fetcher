@@ -1,21 +1,27 @@
-import { fromBinary, toBinary, toJson, toJsonString } from "@bufbuild/protobuf";
+import { fromJsonString, toBinary, toJson } from "@bufbuild/protobuf";
 import fs from "fs";
 import {
+  Envelope,
+  FullyReadMarkers,
+  FullyReadMarkersSchema,
   GetStreamResponse,
   GetStreamResponseSchema,
   SnapshotSchema,
   StreamEvent,
-  StreamEventSchema,
   UserPayload,
+  UserSettingsPayload,
+  UserSettingsPayload_FullyReadMarkers,
 } from "@towns-protocol/proto";
 import {
   getFallbackContent,
   getMiniblocks,
   isChannelStreamId,
-  isPersistedEvent,
   makeRemoteTimelineEvent,
   makeRiverConfig,
   makeStreamRpcClient,
+  ParsedEvent,
+  publicKeyToAddress,
+  riverRecoverPubKey,
   spaceIdFromChannelId,
   streamIdAsBytes,
   StreamStateView,
@@ -27,7 +33,6 @@ import {
   LocalhostWeb3Provider,
   RiverRegistry,
   SpaceAddressFromSpaceId,
-  SpaceDapp,
 } from "@towns-protocol/web3";
 import { utils } from "ethers";
 import { bin_toHexString } from "@towns-protocol/dlog";
@@ -231,7 +236,12 @@ const run = async () => {
     for (const mb of blocksResponse.miniblocks) {
       //console.log("block", block.header?.miniblockNum);
       for (const event of mb.events) {
-        printStreamEventDetails(event, event.event);
+        printStreamEventDetails(
+          event,
+          event.event,
+          event.hash,
+          event.signature
+        );
       }
     }
   }
@@ -242,21 +252,23 @@ const run = async () => {
     //console.log("miniblock", header);
     for (const event of mb.events) {
       const streamEvent = event.event;
-      printStreamEventDetails(event, streamEvent);
+      printStreamEventDetails(event, streamEvent, event.hash, event.signature);
     }
   }
 
   if (unpackedResponse.streamAndCookie.events.length > 0) {
     console.log("======== Minipool events =========");
     for (const event of unpackedResponse.streamAndCookie.events) {
-      printStreamEventDetails(event, event.event);
+      printStreamEventDetails(event, event.event, event.hash, event.signature);
     }
   }
 };
 
 function printStreamEventDetails(
-  parsedEventData: any, // Consider defining a more specific type if available
-  streamEvent: StreamEvent
+  parsedEvent: ParsedEvent, // Consider defining a more specific type if available
+  streamEvent: StreamEvent,
+  hash: Uint8Array,
+  signature: Uint8Array | undefined
 ) {
   if (
     streamEvent.payload.case === "miniblockHeader" &&
@@ -271,7 +283,7 @@ function printStreamEventDetails(
   ).toISOString();
   const content = toEventSA(
     makeRemoteTimelineEvent({
-      parsedEvent: parsedEventData,
+      parsedEvent: parsedEvent,
       eventNum: 0n,
       miniblockNum: 0n,
     }),
@@ -282,13 +294,14 @@ function printStreamEventDetails(
     : "undefined";
   console.log(
     "event",
+    parsedEvent.hashStr,
     userId,
     timestamp,
     streamEvent.payload.case,
     streamEvent.payload.value?.content.case,
     fallbackContent
   );
-  specialPrint(streamEvent);
+  specialPrint(streamEvent, hash, signature);
 }
 
 run()
@@ -298,7 +311,13 @@ run()
     process.exit(1);
   });
 
-function specialPrint(event: StreamEvent) {
+let prevFullyReadMarkers: { [key: string]: FullyReadMarkers } = {};
+
+function specialPrint(
+  event: StreamEvent,
+  hash: Uint8Array,
+  signature: Uint8Array | undefined
+) {
   switch (event.payload.case) {
     case "miniblockHeader":
       console.log(
@@ -339,6 +358,67 @@ function specialPrint(event: StreamEvent) {
             break;
           default:
             //console.log(event.payload.value?.content.case);
+            break;
+        }
+      }
+      break;
+    case "userSettingsPayload":
+      {
+        const payload: UserSettingsPayload = event.payload.value;
+        switch (payload.content.case) {
+          case "fullyReadMarkers":
+            {
+              const markers: UserSettingsPayload_FullyReadMarkers =
+                payload.content.value;
+              if (markers.content?.data) {
+                const newFullyReadMarkers = fromJsonString(
+                  FullyReadMarkersSchema,
+                  markers.content.data
+                );
+                if (signature) {
+                  try {
+                    const signerAddress = riverRecoverPubKey(hash, signature);
+                    console.log(
+                      "  =signerAddress",
+                      userIdFromAddress(publicKeyToAddress(signerAddress))
+                    );
+                  } catch (e) {
+                    console.log("error", e);
+                  }
+                } else {
+                  console.log("  ===no signature");
+                }
+                const streamId = bin_toHexString(markers.streamId);
+                console.log(
+                  "  =fullyReadMarkers",
+                  Object.keys(newFullyReadMarkers.markers).length,
+                  streamId,
+                  Object.keys(newFullyReadMarkers.markers)
+                );
+                if (prevFullyReadMarkers[streamId]) {
+                  for (const [key, value] of Object.entries(
+                    newFullyReadMarkers.markers
+                  )) {
+                    const prev = prevFullyReadMarkers[streamId].markers[key];
+                    if (prev) {
+                      const next = value;
+                      if (next.beginUnreadWindow < prev.beginUnreadWindow) {
+                        console.log(
+                          "    !!!!overwritten beginUnreadWindow!!!!",
+                          streamId,
+                          key,
+                          next.beginUnreadWindow,
+                          prev.beginUnreadWindow
+                        );
+                      }
+                    } else {
+                      console.log("    *new marker", streamId, key);
+                    }
+                  }
+                }
+                prevFullyReadMarkers[streamId] = newFullyReadMarkers;
+              }
+            }
             break;
         }
       }
