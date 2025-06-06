@@ -1,4 +1,4 @@
-yarn upgrade \
+yarn add \
   @towns-protocol/dlog@latest \
   @towns-protocol/encryption@latest \
   @towns-protocol/proto@latest \
