@@ -24,6 +24,7 @@ import {
   riverRecoverPubKey,
   spaceIdFromChannelId,
   streamIdAsBytes,
+  StreamRpcClient,
   StreamStateView,
   toEventSA,
   unpackStream,
@@ -48,7 +49,7 @@ const bytesToMB = (bytes: number): number => {
 const run = async () => {
   const env = process.env.ENV ?? "omega";
   //const loadFileName = process.env.FILENAME ?? undefined;
-  let response: GetStreamResponse;
+  let response: GetStreamResponse | undefined;
   let param: string;
 
   // if (loadFileName) {
@@ -91,75 +92,87 @@ const run = async () => {
     streamStruct.nodes.map((x) => riverRegistry.nodeRegistry.read.getNode(x))
   );
   console.log(JSON.stringify(nodes, undefined, 2));
-  const node = nodes[nodeIndex];
+  let riverRpcProvider: StreamRpcClient | undefined;
+  for (const node of nodes) {
+    //  const node = nodes[nodeIndex];
 
-  const rpcUrl = node.url;
-  console.log("Connecting to URL:", rpcUrl);
-  const riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
-    retryParams: {
-      maxAttempts: 3,
-      initialRetryDelay: 2000,
-      maxRetryDelay: 6000,
-      defaultTimeoutMs: 120000, // 30 seconds for long running requests
-    },
-  });
+    const rpcUrl = node.url;
+    console.log("Connecting to URL:", rpcUrl);
+    riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
+      retryParams: {
+        maxAttempts: 3,
+        initialRetryDelay: 2000,
+        maxRetryDelay: 6000,
+        defaultTimeoutMs: 120000, // 30 seconds for long running requests
+      },
+    });
 
-  // fetch the user stream
-  response = await riverRpcProvider.getStream(
-    {
-      streamId: streamIdAsBytes(param),
-    },
-    { timeoutMs: 120000 }
-  );
+    // fetch the user stream
+    response = await riverRpcProvider.getStream(
+      {
+        streamId: streamIdAsBytes(param),
+      },
+      { timeoutMs: 120000 }
+    );
 
-  const binStreamResponse = toBinary(GetStreamResponseSchema, response);
-  const byteLength = binStreamResponse.byteLength;
-  // print size in mb
-  const mb = bytesToMB(byteLength);
-  console.log("Response size:", mb.toFixed(2), "MB");
+    const binStreamResponse = toBinary(GetStreamResponseSchema, response);
+    const byteLength = binStreamResponse.byteLength;
+    // print size in mb
+    const mb = bytesToMB(byteLength);
+    console.log("Response size:", mb.toFixed(2), "MB");
 
-  // save to file
-  const filename = `temp/${param}-stream-${new Date()
-    .toISOString()
-    .replace(/:/g, "-")
-    .replace("T", "-")
-    .replace(".", "-")
-    .replace("/", "-")}.bin`;
-  fs.writeFileSync(filename, binStreamResponse);
-  console.log(`Saved stream response to ${filename}`);
-  //}
+    // save to file
+    // const filename = `temp/${param}-stream-${new Date()
+    //   .toISOString()
+    //   .replace(/:/g, "-")
+    //   .replace("T", "-")
+    //   .replace(".", "-")
+    //   .replace("/", "-")}.bin`;
+    // fs.writeFileSync(filename, binStreamResponse);
+    // console.log(`Saved stream response to ${filename}`);
+    //}
+    if (!response) {
+      throw new Error("No response");
+    }
+    if (response.stream) {
+      const headerSizes = response.stream.miniblocks.map((m) => {
+        return m.header?.event.byteLength ?? 0;
+      });
+      console.log("header sizes", headerSizes); // Note: This is still in bytes
+      const headerSize = response.stream.miniblocks.reduce((acc, curr) => {
+        return acc + (curr.header?.event.byteLength ?? 0);
+      }, 0);
+      console.log("header size", bytesToMB(headerSize).toFixed(2), "MB");
+      const eventSize = response.stream.miniblocks.reduce((acc, curr) => {
+        return (
+          acc +
+          curr.events.reduce((acc, curr) => {
+            return acc + (curr.event.byteLength ?? 0);
+          }, 0)
+        );
+      }, 0);
+      console.log("event size", bytesToMB(eventSize).toFixed(2), "MB");
+      const minipoolSize = response.stream.events.reduce((acc, curr) => {
+        return acc + (curr.event.byteLength ?? 0);
+      }, 0);
+      console.log("minipool size", bytesToMB(minipoolSize).toFixed(2), "MB");
+      console.log("pool size", response.stream.events.length);
+      if (response.stream.snapshot) {
+        console.log(
+          "snapshot size",
+          bytesToMB(response.stream.snapshot.event.byteLength).toFixed(2),
+          "MB"
+        );
+      }
+    }
+  }
+
+  if (!riverRpcProvider) {
+    throw new Error("No river rpc provider");
+  }
+
   if (!response) {
     throw new Error("No response");
-  }
-  if (response.stream) {
-    const headerSizes = response.stream.miniblocks.map((m) => {
-      return m.header?.event.byteLength ?? 0;
-    });
-    console.log("header sizes", headerSizes); // Note: This is still in bytes
-    const headerSize = response.stream.miniblocks.reduce((acc, curr) => {
-      return acc + (curr.header?.event.byteLength ?? 0);
-    }, 0);
-    console.log("header size", bytesToMB(headerSize).toFixed(2), "MB");
-    const eventSize = response.stream.miniblocks.reduce((acc, curr) => {
-      return (
-        acc +
-        curr.events.reduce((acc, curr) => {
-          return acc + (curr.event.byteLength ?? 0);
-        }, 0)
-      );
-    }, 0);
-    console.log("event size", bytesToMB(eventSize).toFixed(2), "MB");
-    const minipoolSize = response.stream.events.reduce((acc, curr) => {
-      return acc + (curr.event.byteLength ?? 0);
-    }, 0);
-    console.log("minipool size", bytesToMB(minipoolSize).toFixed(2), "MB");
-    if (response.stream.snapshot) {
-      console.log(
-        "snapshot size",
-        bytesToMB(response.stream.snapshot.event.byteLength).toFixed(2),
-        "MB"
-      );
-    }
   }
 
   const unpackedResponse = await unpackStream(response.stream, undefined);
@@ -392,8 +405,8 @@ function specialPrint(
                 console.log(
                   "  =fullyReadMarkers",
                   Object.keys(newFullyReadMarkers.markers).length,
-                  streamId,
-                  Object.keys(newFullyReadMarkers.markers)
+                  streamId
+                  // Object.keys(newFullyReadMarkers.markers)
                 );
                 if (prevFullyReadMarkers[streamId]) {
                   for (const [key, value] of Object.entries(
