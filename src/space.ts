@@ -10,6 +10,8 @@ import {
 import {
   makeRiverConfig,
   makeStreamRpcClient,
+  makeUserInboxStreamId,
+  makeUserMetadataStreamId,
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
@@ -132,13 +134,21 @@ const run = async () => {
   //   toJsonString(SnapshotSchema, unpackedResponse.snapshot, { prettySpaces: 2 })
   // );
 
-  console.log("member count", streamView.getMembers().joined.size);
-  console.log(
-    "members: ",
-    Array.from(streamView.getMembers().joined.entries()).map(
-      ([k, v]) => v.userId
-    )
+  const members = Array.from(streamView.getMembers().joined.entries()).map(
+    ([k, v]) => v.userId
   );
+  console.log("member count", members.length);
+
+  console.log("members: ", members);
+
+  for (const member of members) {
+    const inboxStreamId = makeUserInboxStreamId(member);
+    console.log("inbox stream id", inboxStreamId);
+    const inboxStream = await riverRpcProvider1.getLastMiniblockHash({
+      streamId: streamIdAsBytes(inboxStreamId),
+    });
+    console.log("inbox stream", inboxStream.hash, inboxStream.miniblockNum);
+  }
 };
 
 run()

@@ -1,4 +1,9 @@
-import { fromJsonString, toBinary, toJson } from "@bufbuild/protobuf";
+import {
+  enumToJson,
+  fromJsonString,
+  toBinary,
+  toJson,
+} from "@bufbuild/protobuf";
 import fs from "fs";
 import {
   Envelope,
@@ -6,6 +11,9 @@ import {
   FullyReadMarkersSchema,
   GetStreamResponse,
   GetStreamResponseSchema,
+  MemberPayload,
+  MembershipOpSchema,
+  MembershipReasonSchema,
   SnapshotSchema,
   StreamEvent,
   UserPayload,
@@ -20,10 +28,12 @@ import {
   makeRiverConfig,
   makeStreamRpcClient,
   ParsedEvent,
+  ParsedStreamResponse,
   publicKeyToAddress,
   riverRecoverPubKey,
   spaceIdFromChannelId,
   streamIdAsBytes,
+  streamIdAsString,
   StreamRpcClient,
   StreamStateView,
   toEventSA,
@@ -233,6 +243,11 @@ const run = async () => {
     console.log("space address", SpaceAddressFromSpaceId(spaceId));
   }
 
+  const opts: PrintStreamResponseEventsOpts = {
+    noEvents: true,
+    noMiniblockHeaders: true,
+  };
+
   if (historicalBlocks > 0) {
     const toExclusive =
       unpackedResponse.streamAndCookie.miniblocks[0].header.miniblockNum;
@@ -253,35 +268,60 @@ const run = async () => {
           event,
           event.event,
           event.hash,
-          event.signature
+          event.signature,
+          opts
         );
       }
     }
   }
+  printStreamResponseEvents(unpackedResponse, opts);
+};
 
+type PrintStreamResponseEventsOpts = {
+  noEvents?: boolean;
+  noMiniblockHeaders?: boolean;
+};
+
+export function printStreamResponseEvents(
+  unpackedResponse: ParsedStreamResponse,
+  opts?: PrintStreamResponseEventsOpts
+) {
   console.log("======== Stream events =========");
   for (const mb of unpackedResponse.streamAndCookie.miniblocks) {
     //const header = mb.header?.miniblockNum;
     //console.log("miniblock", header);
     for (const event of mb.events) {
       const streamEvent = event.event;
-      printStreamEventDetails(event, streamEvent, event.hash, event.signature);
+      printStreamEventDetails(
+        event,
+        streamEvent,
+        event.hash,
+        event.signature,
+        opts
+      );
     }
   }
 
   if (unpackedResponse.streamAndCookie.events.length > 0) {
     console.log("======== Minipool events =========");
     for (const event of unpackedResponse.streamAndCookie.events) {
-      printStreamEventDetails(event, event.event, event.hash, event.signature);
+      printStreamEventDetails(
+        event,
+        event.event,
+        event.hash,
+        event.signature,
+        opts
+      );
     }
   }
-};
+}
 
 function printStreamEventDetails(
   parsedEvent: ParsedEvent, // Consider defining a more specific type if available
   streamEvent: StreamEvent,
   hash: Uint8Array,
-  signature: Uint8Array | undefined
+  signature: Uint8Array | undefined,
+  opts?: PrintStreamResponseEventsOpts
 ) {
   if (
     streamEvent.payload.case === "miniblockHeader" &&
@@ -305,40 +345,53 @@ function printStreamEventDetails(
   const fallbackContent = content
     ? getFallbackContent(userId, content)
     : "undefined";
-  console.log(
-    "event",
-    parsedEvent.hashStr,
-    userId,
-    timestamp,
-    streamEvent.payload.case,
-    streamEvent.payload.value?.content.case,
-    fallbackContent
-  );
-  specialPrint(streamEvent, hash, signature);
+  if (opts?.noEvents !== true) {
+    console.log(
+      "event",
+      parsedEvent.hashStr,
+      userId,
+      timestamp,
+      streamEvent.payload.case,
+      streamEvent.payload.value?.content.case,
+      fallbackContent
+    );
+  }
+  specialPrint(streamEvent, hash, signature, opts);
 }
-
-run()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error("unhandled error:", e);
-    process.exit(1);
-  });
 
 let prevFullyReadMarkers: { [key: string]: FullyReadMarkers } = {};
 
-function specialPrint(
+export function specialPrint(
   event: StreamEvent,
   hash: Uint8Array,
-  signature: Uint8Array | undefined
+  signature: Uint8Array | undefined,
+  opts?: PrintStreamResponseEventsOpts
 ) {
   switch (event.payload.case) {
     case "miniblockHeader":
-      console.log(
-        "miniblockHeader",
-        event.payload.value?.miniblockNum,
-        `events: ${event.payload.value?.eventHashes.length}`
-      );
+      if (opts?.noMiniblockHeaders !== true) {
+        console.log(
+          "miniblockHeader",
+          event.payload.value?.miniblockNum,
+          `events: ${event.payload.value?.eventHashes.length}`
+        );
+      }
       break;
+    case "memberPayload": {
+      const payload: MemberPayload = event.payload.value;
+      switch (payload.content.case) {
+        case "membership":
+          {
+            if (payload.content.value.reason !== undefined) {
+              console.log("  reason", payload.content.value.reason);
+            } else {
+              console.log("  no reason", payload.content.value.reason);
+            }
+          }
+          break;
+      }
+      break;
+    }
     case "userPayload":
       {
         const payload: UserPayload = event.payload.value;
@@ -369,6 +422,24 @@ function specialPrint(
               break;
             }
             break;
+          case "userMembership": {
+            const membership = payload.content.value;
+            console.log(
+              "userMembership",
+              // the date
+              new Date(Number(event.createdAtEpochMs)).toISOString(),
+              streamIdAsString(membership.streamId),
+              "op",
+              enumToJson(MembershipOpSchema, membership.op),
+              "reason",
+              membership.reason
+                ? enumToJson(MembershipReasonSchema, membership.reason)
+                : undefined,
+              "streamId",
+              streamIdAsString(membership.streamId)
+            );
+            break;
+          }
           default:
             //console.log(event.payload.value?.content.case);
             break;
@@ -439,4 +510,14 @@ function specialPrint(
     default:
       console.log(event.payload.case);
   }
+}
+
+// only run if this file is the main file
+if (require.main === module) {
+  run()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error("unhandled error:", e);
+      process.exit(1);
+    });
 }

@@ -23,6 +23,7 @@ import {
   SpaceAddressFromSpaceId,
   SpaceDapp,
 } from "@towns-protocol/web3";
+import { printStreamResponseEvents } from "./stream";
 
 const bListSpaceNames = false;
 
@@ -200,6 +201,10 @@ const run = async () => {
           streamView.userContent.tipsSent,
           streamView.userContent.tipsSentCount
         );
+        printStreamResponseEvents(unpackedResponse, {
+          noEvents: true,
+          noMiniblockHeaders: true,
+        });
       }
     } catch (e) {
       console.error("failed", streamId, e);
