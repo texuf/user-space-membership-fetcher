@@ -93,7 +93,11 @@ const run = async () => {
   );
 
   // find nodes for the stream
-  const streamStruct = await riverRegistry.getStream(streamIdAsBytes(param));
+  const streamIdBytes = streamIdAsBytes(param);
+  const startGetNodes = performance.now();
+  const streamStruct = await riverRegistry.getStream(streamIdBytes);
+  const endGetNodes = performance.now();
+  console.log("getStreamFromRegistry time:", endGetNodes - startGetNodes, "ms");
 
   console.log("Stream:");
   console.log(JSON.stringify(streamStruct, undefined, 2));
@@ -107,6 +111,7 @@ const run = async () => {
     //  const node = nodes[nodeIndex];
 
     const rpcUrl = node.url;
+    console.log("");
     console.log("Connecting to URL:", rpcUrl);
     riverRpcProvider = makeStreamRpcClient(rpcUrl, undefined, {
       retryParams: {
@@ -118,12 +123,23 @@ const run = async () => {
     });
 
     // fetch the user stream
+    const time3 = performance.now();
     response = await riverRpcProvider.getStream(
       {
-        streamId: streamIdAsBytes(param),
+        streamId: streamIdBytes,
       },
       { timeoutMs: 120000 }
     );
+    const time4 = performance.now();
+    console.log("Get stream time:", time4 - time3, "ms");
+
+    const time1 = performance.now();
+    const lastMiniblockResponse = await riverRpcProvider.getLastMiniblockHash({
+      streamId: streamIdBytes,
+    });
+    const time2 = performance.now();
+    console.log("Last miniblock hash time:", time2 - time1, "ms");
+    console.log("Last miniblock hash:", lastMiniblockResponse);
 
     const binStreamResponse = toBinary(GetStreamResponseSchema, response);
     const byteLength = binStreamResponse.byteLength;
@@ -245,7 +261,7 @@ const run = async () => {
 
   const opts: PrintStreamResponseEventsOpts = {
     noEvents: true,
-    noMiniblockHeaders: true,
+    noMiniblockHeaders: false,
   };
 
   if (historicalBlocks > 0) {
@@ -372,7 +388,15 @@ export function specialPrint(
       if (opts?.noMiniblockHeaders !== true) {
         console.log(
           "miniblockHeader",
+          bin_toHexString(hash),
           event.payload.value?.miniblockNum,
+          `snapshot: ${
+            event.payload.value?.snapshotHash
+              ? bin_toHexString(event.payload.value?.snapshotHash)
+              : event.payload.value?.snapshot
+              ? "yes"
+              : "nil"
+          }`,
           `events: ${event.payload.value?.eventHashes.length}`
         );
       }
