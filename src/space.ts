@@ -18,11 +18,13 @@ import {
 } from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
+  Permission,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
   SpaceIdFromSpaceAddress,
 } from "@towns-protocol/web3";
+import { join } from "path";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";
@@ -76,6 +78,20 @@ const run = async () => {
   const channelInfo = await spaceDapp.getChannels(streamId);
   console.log("Channel Info:");
   console.log(JSON.stringify(channelInfo, undefined, 2));
+
+  const roles = await spaceDapp.getRoles(streamId);
+  console.log("Roles:");
+  console.log(JSON.stringify(roles, undefined, 2));
+  for (const role of roles) {
+    const roleInfo = await spaceDapp.getRole(streamId, role.roleId);
+    console.log("Role Info:", roleInfo);
+    const permissions = await spaceDapp.getPermissionsByRoleId(
+      streamId,
+      role.roleId
+    );
+    console.log("Permissions for role:", role);
+    console.log(JSON.stringify(permissions, undefined, 2));
+  }
 
   // find nodes for the stream
   const streamStruct = await riverRegistry.getStream(streamIdAsBytes(streamId));
@@ -141,14 +157,14 @@ const run = async () => {
 
   console.log("members: ", members);
 
-  for (const member of members) {
-    const inboxStreamId = makeUserInboxStreamId(member);
-    console.log("inbox stream id", inboxStreamId);
-    const inboxStream = await riverRpcProvider1.getLastMiniblockHash({
-      streamId: streamIdAsBytes(inboxStreamId),
-    });
-    console.log("inbox stream", inboxStream.hash, inboxStream.miniblockNum);
-  }
+  // for (const member of members) {
+  //   const inboxStreamId = makeUserInboxStreamId(member);
+  //   console.log("inbox stream id", inboxStreamId);
+  //   const inboxStream = await riverRpcProvider1.getLastMiniblockHash({
+  //     streamId: streamIdAsBytes(inboxStreamId),
+  //   });
+  //   console.log("inbox stream", inboxStream.hash, inboxStream.miniblockNum);
+  // }
 };
 
 run()

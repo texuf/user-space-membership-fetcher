@@ -1,8 +1,10 @@
 import {
+  clone,
   enumToJson,
   fromJsonString,
   toBinary,
   toJson,
+  toJsonString,
 } from "@bufbuild/protobuf";
 import fs from "fs";
 import {
@@ -16,6 +18,7 @@ import {
   MembershipReasonSchema,
   SnapshotSchema,
   StreamEvent,
+  TagsSchema,
   UserPayload,
   UserSettingsPayload,
   UserSettingsPayload_FullyReadMarkers,
@@ -24,6 +27,7 @@ import {
   getFallbackContent,
   getMiniblocks,
   isChannelStreamId,
+  isSpaceStreamId,
   makeRemoteTimelineEvent,
   makeRiverConfig,
   makeStreamRpcClient,
@@ -193,6 +197,17 @@ const run = async () => {
     }
   }
 
+  riverRpcProvider = makeStreamRpcClient(nodes[0].url, undefined, {
+    retryParams: {
+      maxAttempts: 3,
+      initialRetryDelay: 2000,
+      maxRetryDelay: 6000,
+      defaultTimeoutMs: 120000, // 30 seconds for long running requests
+    },
+  });
+
+  console.log("riverRpcProvider", riverRpcProvider);
+
   if (!riverRpcProvider) {
     throw new Error("No river rpc provider");
   }
@@ -204,6 +219,20 @@ const run = async () => {
   const unpackedResponse = await unpackStream(response.stream, undefined);
 
   console.log("snapshot", toJson(SnapshotSchema, unpackedResponse.snapshot));
+  console.log(
+    "snapshot size",
+    bytesToMB(response.stream?.snapshot?.event.byteLength ?? 0).toFixed(2),
+    "MB"
+  );
+  // make a copy of the snapshot
+  const snapshotCopy = clone(SnapshotSchema, unpackedResponse.snapshot);
+  snapshotCopy.members?.joined.forEach((m) => {
+    m.solicitations = [];
+  });
+  const snapshotCopyBin = toBinary(SnapshotSchema, snapshotCopy);
+  const snapshotCopyBinSize = snapshotCopyBin.byteLength;
+  const snapshotCopyMB = bytesToMB(snapshotCopyBinSize);
+  console.log("snapshotCopy size", snapshotCopyMB.toFixed(2), "MB");
 
   if (printMembers) {
     const members = unpackedResponse.snapshot?.members?.joined ?? [];
@@ -253,6 +282,10 @@ const run = async () => {
     unpackedResponse.streamAndCookie.miniblocks.flatMap((x) => x.events).length
   );
 
+  if (isSpaceStreamId(param)) {
+    console.log("space address", SpaceAddressFromSpaceId(param));
+  }
+
   if (isChannelStreamId(param)) {
     const spaceId = spaceIdFromChannelId(param);
     console.log("spaceId", spaceId);
@@ -260,14 +293,19 @@ const run = async () => {
   }
 
   const opts: PrintStreamResponseEventsOpts = {
-    noEvents: true,
+    noEvents: false,
     noMiniblockHeaders: false,
   };
 
   if (historicalBlocks > 0) {
     const toExclusive =
       unpackedResponse.streamAndCookie.miniblocks[0].header.miniblockNum;
-    const fromInclusive = toExclusive - BigInt(historicalBlocks);
+    let fromInclusive = toExclusive - BigInt(historicalBlocks);
+    if (fromInclusive < 0n) {
+      fromInclusive = 0n;
+    }
+    console.log("fromInclusive", fromInclusive);
+    console.log("toExclusive", toExclusive);
     const blocksResponse = await getMiniblocks(
       riverRpcProvider,
       param,
@@ -369,7 +407,8 @@ function printStreamEventDetails(
       timestamp,
       streamEvent.payload.case,
       streamEvent.payload.value?.content.case,
-      fallbackContent
+      fallbackContent,
+      streamEvent.tags ? toJsonString(TagsSchema, streamEvent.tags) : ""
     );
   }
   specialPrint(streamEvent, hash, signature, opts);
