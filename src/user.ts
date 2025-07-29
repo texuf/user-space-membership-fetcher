@@ -102,7 +102,7 @@ const run = async () => {
   });
 
   const unpackedResponse = await unpackStream(response.stream, undefined);
-  const streamView = new StreamStateView("0", userStreamId);
+  const streamView = new StreamStateView("0", userStreamId, undefined);
   streamView.initialize(
     unpackedResponse.streamAndCookie.nextSyncCookie,
     unpackedResponse.streamAndCookie.events,
@@ -118,7 +118,7 @@ const run = async () => {
   const joined = Object.entries(streamView.userContent.streamMemberships)
     .filter(
       (kv) =>
-        kv[1].op === MembershipOp.SO_JOIN &&
+        kv[1]?.op === MembershipOp.SO_JOIN &&
         (isSpaceStreamId(kv[0]) || isChannelStreamId(kv[0]))
     )
     .map((kv) => kv[0]);
@@ -181,7 +181,7 @@ const run = async () => {
       const unpackedResponse = await unpackStream(response.stream, undefined);
       console.log("pool size", unpackedResponse.streamAndCookie.events.length);
       console.log("success");
-      const streamView = new StreamStateView("0", streamId);
+      const streamView = new StreamStateView("0", streamId, undefined);
       streamView.initialize(
         unpackedResponse.streamAndCookie.nextSyncCookie,
         unpackedResponse.streamAndCookie.events,
@@ -240,7 +240,7 @@ async function loadStream(
         streamId: streamIdAsBytes(streamId),
       });
       const unpackedResponse = await unpackStream(response.stream, undefined);
-      const streamView = new StreamStateView("0", streamId);
+      const streamView = new StreamStateView("0", streamId, undefined);
       streamView.initialize(
         unpackedResponse.streamAndCookie.nextSyncCookie,
         unpackedResponse.streamAndCookie.events,

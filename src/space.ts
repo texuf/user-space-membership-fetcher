@@ -118,7 +118,7 @@ const run = async () => {
   console.log("Response size:", mb.toFixed(2), "MB");
 
   const unpackedResponse = await unpackStream(response.stream, undefined);
-  const streamView = new StreamStateView("0", streamId);
+  const streamView = new StreamStateView("0", streamId, undefined);
   streamView.initialize(
     unpackedResponse.streamAndCookie.nextSyncCookie,
     unpackedResponse.streamAndCookie.events,

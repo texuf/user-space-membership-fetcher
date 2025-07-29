@@ -56,7 +56,7 @@ const run = async () => {
       (x) => ({ address: x, isMember: undefined })
     );
     for (const x of isMember) {
-      x.isMember = await spaceDapp.hasSpaceMembership(param, x.address);
+      x.isMember = await spaceDapp.hasSpaceMembership(param, [x.address]);
     }
 
     console.log(

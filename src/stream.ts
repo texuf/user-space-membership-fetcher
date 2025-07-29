@@ -6,9 +6,7 @@ import {
   toJson,
   toJsonString,
 } from "@bufbuild/protobuf";
-import fs from "fs";
 import {
-  Envelope,
   FullyReadMarkers,
   FullyReadMarkersSchema,
   GetStreamResponse,
@@ -40,7 +38,7 @@ import {
   streamIdAsString,
   StreamRpcClient,
   StreamStateView,
-  toEventSA,
+  toEvent,
   unpackStream,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
@@ -134,6 +132,9 @@ const run = async () => {
       },
       { timeoutMs: 120000 }
     );
+    if (!response) {
+      throw new Error("No response");
+    }
     const time4 = performance.now();
     console.log("Get stream time:", time4 - time3, "ms");
 
@@ -161,9 +162,7 @@ const run = async () => {
     // fs.writeFileSync(filename, binStreamResponse);
     // console.log(`Saved stream response to ${filename}`);
     //}
-    if (!response) {
-      throw new Error("No response");
-    }
+
     if (response.stream) {
       const headerSizes = response.stream.miniblocks.map((m) => {
         return m.header?.event.byteLength ?? 0;
@@ -241,7 +240,7 @@ const run = async () => {
     }
   }
 
-  const streamView = new StreamStateView("0", param);
+  const streamView = new StreamStateView("0", param, undefined);
   streamView.initialize(
     unpackedResponse.streamAndCookie.nextSyncCookie,
     unpackedResponse.streamAndCookie.events,
@@ -312,7 +311,8 @@ const run = async () => {
       fromInclusive,
       toExclusive,
       true,
-      {}
+      undefined,
+      undefined
     );
     console.log("======== Historical events =========");
     for (const mb of blocksResponse.miniblocks) {
@@ -388,7 +388,7 @@ function printStreamEventDetails(
   const timestamp = new Date(
     Number(streamEvent.createdAtEpochMs)
   ).toISOString();
-  const content = toEventSA(
+  const content = toEvent(
     makeRemoteTimelineEvent({
       parsedEvent: parsedEvent,
       eventNum: 0n,

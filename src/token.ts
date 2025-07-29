@@ -33,11 +33,11 @@ const run = async () => {
   );
 
   const spaceOwner = new SpaceOwner(
-    config.base.chainConfig,
+    config.base.chainConfig.addresses.spaceOwner,
     new LocalhostWeb3Provider(config.base.rpcUrl)
   );
 
-  const uri = await spaceOwner.erc721A.read.tokenURI(param2);
+  const uri = await spaceOwner.read.tokenURI(param2);
   console.log("Token URI:", uri);
 
   // console.log(

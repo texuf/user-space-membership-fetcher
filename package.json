@@ -7,11 +7,12 @@
   "license": "MIT",
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.2",
-    "@towns-protocol/dlog": "^0.0.239",
-    "@towns-protocol/encryption": "^0.0.239",
-    "@towns-protocol/proto": "^0.0.239",
-    "@towns-protocol/sdk": "^0.0.239",
-    "@towns-protocol/web3": "^0.0.239",
+    "@connectrpc/connect-node": "^2.0.0",
+    "@towns-protocol/dlog": "^0.0.287",
+    "@towns-protocol/encryption": "^0.0.287",
+    "@towns-protocol/proto": "^0.0.287",
+    "@towns-protocol/sdk": "^0.0.287",
+    "@towns-protocol/web3": "^0.0.287",
     "dotenv": "^16.4.7",
     "ethereum-cryptography": "^3.2.0",
     "ethers": "5.7.2",
@@ -24,17 +25,18 @@
     "typescript": "^5.5.3"
   },
   "scripts": {
-    "build": "yarn typecheck",
+    "build": "yarn typecheck && yarn build-esbuild",
+    "build-esbuild": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "watch": "tsc --watch",
-    "stream": "tsx ./src/stream.ts $*",
-    "space": "tsx ./src/space.ts $*",
-    "get-stream": "tsx ./src/get-stream.ts $*",
-    "permissions": "tsx ./src/permissions.ts $*",
-    "user": "tsx ./src/user.ts $*",
-    "inbox": "tsx ./src/inbox.ts $*",
-    "token": "tsx ./src/token.ts $*",
-    "tips": "tsx ./src/tips.ts $*"
+    "stream": "yarn build && node ./dist/stream.cjs $*",
+    "space": "yarn build && node ./dist/space.cjs $*",
+    "get-stream": "yarn build && node ./dist/get-stream.cjs $*",
+    "permissions": "yarn build && node ./dist/permissions.cjs $*",
+    "user": "yarn build && node ./dist/user.cjs $*",
+    "inbox": "yarn build && node ./dist/inbox.cjs $*",
+    "token": "yarn build && node ./dist/token.cjs $*",
+    "tips": "yarn build && node ./dist/tips.cjs $*"
   },
   "files": [
     "/dist"
