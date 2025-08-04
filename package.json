@@ -16,7 +16,10 @@
     "dotenv": "^16.4.7",
     "ethereum-cryptography": "^3.2.0",
     "ethers": "5.7.2",
-    "tsx": "^4.19.4"
+    "superjson": "^2.2.2",
+    "tsx": "^4.19.4",
+    "viem": "^2.29.3",
+    "zod": "^3.21.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.8",
@@ -29,14 +32,15 @@
     "build-esbuild": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "watch": "tsc --watch",
-    "stream": "yarn build && node ./dist/stream.cjs $*",
-    "space": "yarn build && node ./dist/space.cjs $*",
     "get-stream": "yarn build && node ./dist/get-stream.cjs $*",
-    "permissions": "yarn build && node ./dist/permissions.cjs $*",
-    "user": "yarn build && node ./dist/user.cjs $*",
     "inbox": "yarn build && node ./dist/inbox.cjs $*",
+    "operators": "yarn build && node ./dist/operators.cjs $*",
+    "permissions": "yarn build && node ./dist/permissions.cjs $*",
+    "space": "yarn build && node ./dist/space.cjs $*",
+    "stream": "yarn build && node ./dist/stream.cjs $*",
+    "tips": "yarn build && node ./dist/tips.cjs $*",
     "token": "yarn build && node ./dist/token.cjs $*",
-    "tips": "yarn build && node ./dist/tips.cjs $*"
+    "user": "yarn build && node ./dist/user.cjs $*"
   },
   "files": [
     "/dist"

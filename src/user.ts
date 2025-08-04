@@ -23,7 +23,7 @@ import {
   SpaceAddressFromSpaceId,
   SpaceDapp,
 } from "@towns-protocol/web3";
-import { printStreamResponseEvents } from "./stream";
+import { printStreamResponseEvents } from "./utils/utils";
 
 const bListSpaceNames = false;
 

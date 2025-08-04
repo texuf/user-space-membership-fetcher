@@ -3,13 +3,14 @@ import { build } from "esbuild";
 build({
   entryPoints: {
     getStream: "./src/get-stream.ts",
+    inbox: "./src/user-inbox.ts",
+    operators: "./src/operators.ts",
     permissions: "./src/permissions.ts",
     space: "./src/space.ts",
     stream: "./src/stream.ts",
     tips: "./src/tips.ts",
     token: "./src/token.ts",
     user: "./src/user.ts",
-    inbox: "./src/user-inbox.ts",
   },
   bundle: true,
   sourcemap: "inline",

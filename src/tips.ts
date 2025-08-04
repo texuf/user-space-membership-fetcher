@@ -14,20 +14,11 @@ import {
   SpaceAddressFromSpaceId,
   SpaceDapp,
 } from "@towns-protocol/web3";
-import * as dotenv from "dotenv";
-
-// Load environment variables from .env.local
-dotenv.config({ path: ".env.local" });
-
-const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
-
-if (!ALCHEMY_API_KEY) {
-  throw new Error("ALCHEMY_API_KEY environment variable is not set");
-}
+import { env } from "./env";
 
 // Replace with your provider URL (Infura, Alchemy, or local node)
 //const PROVIDER_URL = "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY";
-const PROVIDER_URL = `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
+const PROVIDER_URL = `https://base-mainnet.g.alchemy.com/v2/${env.ALCHEMY_API_KEY}`;
 
 // Replace with the target contract address
 const CONTRACT_ADDRESS = "0x37f792728f5dd4049dd25442e7ed3f1a38a827d1"; //ax1
