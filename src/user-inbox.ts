@@ -3,7 +3,7 @@ import { MembershipOp } from "@towns-protocol/proto";
 import {
   isChannelStreamId,
   isSpaceStreamId,
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   makeUserInboxStreamId,
   makeUserMetadataStreamId,
@@ -23,9 +23,9 @@ import {
   SpaceAddressFromSpaceId,
   SpaceDapp,
 } from "@towns-protocol/web3";
+import { env } from "./env";
 
 const run = async () => {
-  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param = process.argv[2];
   if (!param) {
@@ -35,7 +35,7 @@ const run = async () => {
   console.log(`Running user-space-membership-fetcher for ${param} in ${env}`);
 
   // make the config
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(

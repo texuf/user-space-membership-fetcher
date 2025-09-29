@@ -27,7 +27,7 @@ import {
   isChannelStreamId,
   isSpaceStreamId,
   makeRemoteTimelineEvent,
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   ParsedEvent,
   ParsedStreamResponse,
@@ -48,12 +48,13 @@ import {
   SpaceAddressFromSpaceId,
 } from "@towns-protocol/web3";
 import { utils } from "ethers";
-import { bin_toHexString } from "@towns-protocol/dlog";
+import { bin_toHexString } from "@towns-protocol/utils";
 import {
   printStreamEventDetails,
   printStreamResponseEvents,
   PrintStreamResponseEventsOpts,
 } from "./utils/utils";
+import { env } from "./env";
 
 const printMembers = false;
 const printMiniblockHeaders = true;
@@ -64,7 +65,6 @@ const bytesToMB = (bytes: number): number => {
 };
 
 const run = async () => {
-  const env = process.env.ENV ?? "omega";
   //const loadFileName = process.env.FILENAME ?? undefined;
   let response: GetStreamResponse | undefined;
   let param: string;
@@ -88,7 +88,7 @@ const run = async () => {
   console.log(`Running stream-info for ${param} in ${env}`);
 
   // make the config
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   console.log(`Base rpc url: ${config.base.rpcUrl}`);
   console.log(`River rpc url: ${config.river.rpcUrl}`);

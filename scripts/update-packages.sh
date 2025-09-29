@@ -1,5 +1,5 @@
 yarn add \
-  @towns-protocol/dlog@latest \
+  @towns-protocol/utils@latest \
   @towns-protocol/encryption@latest \
   @towns-protocol/proto@latest \
   @towns-protocol/sdk@latest \

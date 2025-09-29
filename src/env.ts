@@ -11,5 +11,14 @@ if (!ALCHEMY_API_KEY) {
 
 export const env = {
   ALCHEMY_API_KEY,
-  ENVIRONMENT: process.env.ENVIRONMENT ?? "omega",
+  ENVIRONMENT:
+    process.env.ENVIRONMENT ??
+    process.env.RIVER_ENV ??
+    process.env.ENV ??
+    "omega",
+  RIVER_ENV:
+    process.env.RIVER_ENV ??
+    process.env.ENVIRONMENT ??
+    process.env.ENV ??
+    "omega",
 };

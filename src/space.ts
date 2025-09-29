@@ -1,33 +1,22 @@
-import { toBinary, toJsonString } from "@bufbuild/protobuf";
+import { toBinary } from "@bufbuild/protobuf";
+import { GetStreamResponseSchema } from "@towns-protocol/proto";
 import {
-  GetStreamResponseSchema,
-  Snapshot,
-  SnapshotSchema,
-  StreamAndCookie,
-  StreamAndCookieSchema,
-  StreamEventSchema,
-} from "@towns-protocol/proto";
-import {
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
-  makeUserInboxStreamId,
-  makeUserMetadataStreamId,
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
 } from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
-  Permission,
   RiverRegistry,
   SpaceAddressFromSpaceId,
   SpaceDapp,
   SpaceIdFromSpaceAddress,
 } from "@towns-protocol/web3";
-import { join } from "path";
+import { env } from "./env";
 
 const run = async () => {
-  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param2 = process.argv[2];
   if (!param2) {
@@ -45,7 +34,7 @@ const run = async () => {
   console.log(`Running space-info for ${spaceAddress} ${streamId} in ${env}`);
 
   // make the config
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(

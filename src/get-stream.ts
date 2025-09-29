@@ -1,18 +1,4 @@
-import { GetStreamRequest } from "@towns-protocol/proto";
-import {
-  makeRiverConfig,
-  makeStreamRpcClient,
-  streamIdAsBytes,
-  streamIdAsString,
-  StreamStateView,
-  unpackStream,
-} from "@towns-protocol/sdk";
-import {
-  LocalhostWeb3Provider,
-  RiverRegistry,
-  SpaceDapp,
-} from "@towns-protocol/web3";
-import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
+import { streamIdAsString } from "@towns-protocol/sdk";
 
 const run = async () => {
   const env = process.env.ENV ?? "omega";

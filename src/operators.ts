@@ -1,9 +1,10 @@
 import {
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   streamIdAsBytes,
   StreamStateView,
   unpackStream,
+  TownsConfig,
 } from "@towns-protocol/sdk";
 import {
   LocalhostWeb3Provider,
@@ -161,7 +162,7 @@ const cachedValue = async <T>(fn: () => Promise<T>) => {
 };
 
 export async function getOperators(): Promise<StakeableOperatorsResponse> {
-  const config = makeRiverConfig(env.ENVIRONMENT);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   const contractAddresses = {
     baseRegistry: config.base.chainConfig.addresses.baseRegistry as Address,
@@ -477,7 +478,7 @@ export interface RiverNode {
 
 export const getRiverNodes = async (
   riverClient: PublicClient,
-  config: ReturnType<typeof makeRiverConfig>
+  config: TownsConfig
 ): Promise<RiverNode[]> => {
   try {
     const nodes = await riverClient.readContract({
@@ -495,7 +496,7 @@ export const getRiverNodes = async (
 };
 
 export async function fetchOperatorStatus(
-  env: ReturnType<typeof makeRiverConfig>,
+  env: TownsConfig,
   baseClient: PublicClient,
   operator: Address
 ): Promise<number> {
@@ -516,7 +517,7 @@ export async function fetchOperatorStatus(
 }
 
 export async function fetchNetworkApy(
-  env: ReturnType<typeof makeRiverConfig>,
+  env: TownsConfig,
   baseClient: PublicClient
 ) {
   const baseRegistry = env.base.chainConfig.addresses.baseRegistry as Address;
@@ -542,7 +543,7 @@ export async function fetchNetworkApy(
 }
 
 export async function fetchCommissionRate(
-  env: ReturnType<typeof makeRiverConfig>,
+  env: TownsConfig,
   baseClient: PublicClient,
   operator: Address
 ): Promise<bigint> {

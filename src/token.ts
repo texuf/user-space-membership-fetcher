@@ -1,5 +1,5 @@
 import {
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   streamIdAsBytes,
   StreamStateView,
@@ -13,9 +13,9 @@ import {
   SpaceIdFromSpaceAddress,
   SpaceOwner,
 } from "@towns-protocol/web3";
+import { env } from "./env";
 
 const run = async () => {
-  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param2 = process.argv[2];
   if (!param2) {
@@ -24,7 +24,7 @@ const run = async () => {
   }
 
   // make the config
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(

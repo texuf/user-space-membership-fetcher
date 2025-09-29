@@ -1,10 +1,10 @@
-import { bin_fromBase64, bin_toHexString } from "@towns-protocol/dlog";
+import { bin_fromBase64, bin_toHexString } from "@towns-protocol/utils";
 import { MembershipOp } from "@towns-protocol/proto";
 import {
   getUserIdFromStreamId,
   isChannelStreamId,
   isSpaceStreamId,
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   makeUserInboxStreamId,
   makeUserMetadataStreamId,
@@ -24,11 +24,11 @@ import {
   SpaceDapp,
 } from "@towns-protocol/web3";
 import { printStreamResponseEvents } from "./utils/utils";
+import { env } from "./env";
 
 const bListSpaceNames = false;
 
 const run = async () => {
-  const env = process.env.ENV ?? "omega";
   // Get the wallet address from the command line arguments
   const param = process.argv[2];
   if (!param) {
@@ -38,7 +38,7 @@ const run = async () => {
   console.log(`Running user-space-membership-fetcher for ${param} in ${env}`);
 
   // make the config
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(

@@ -1,5 +1,5 @@
 import { utils } from "ethers";
-import { bin_toHexString } from "@towns-protocol/dlog";
+import { bin_toHexString } from "@towns-protocol/utils";
 import { enumToJson, fromJsonString, toJsonString } from "@bufbuild/protobuf";
 
 import {

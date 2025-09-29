@@ -1,7 +1,7 @@
 import { ethers, providers } from "ethers";
 import {
   isChannelStreamId,
-  makeRiverConfig,
+  townsEnv,
   makeStreamRpcClient,
   spaceIdFromChannelId,
   streamIdAsBytes,
@@ -36,8 +36,7 @@ async function fetchTipEvents() {
   // Set up provider
   const provider = new providers.JsonRpcProvider(PROVIDER_URL);
 
-  const env = process.env.ENV ?? "omega";
-  const config = makeRiverConfig(env);
+  const config = townsEnv({ env }).makeTownsConfig();
 
   // make a space dapp
   const spaceDapp = new SpaceDapp(
