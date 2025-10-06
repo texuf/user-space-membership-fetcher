@@ -15,10 +15,12 @@ export const env = {
     process.env.ENVIRONMENT ??
     process.env.RIVER_ENV ??
     process.env.ENV ??
+    process.env.env ??
     "omega",
   RIVER_ENV:
     process.env.RIVER_ENV ??
     process.env.ENVIRONMENT ??
     process.env.ENV ??
+    process.env.env ??
     "omega",
 };
