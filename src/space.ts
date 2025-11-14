@@ -56,9 +56,11 @@ const run = async () => {
   const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
   console.log("Space:");
   console.log(JSON.stringify(spaceInfo, undefined, 2));
-  const tokenUri = await spaceDapp.tokenURI(streamId);
+  const tokenUri = await spaceDapp.spaceOwner.read.tokenURI(streamId);
   console.log("Token URI:", tokenUri);
-  const memberTokenUri = await spaceDapp.memberTokenURI(streamId, "0");
+  const memberTokenUri = await spaceDapp
+    .getSpace(streamId)
+    ?.ERC721A.read.tokenURI("0");
   console.log("Member Token URI:", memberTokenUri);
 
   console.log("Space Info:");

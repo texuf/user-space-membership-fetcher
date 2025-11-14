@@ -19,11 +19,11 @@ import {
   makeRemoteTimelineEvent,
   ParsedEvent,
   ParsedStreamResponse,
-  publicKeyToAddress,
   streamIdAsString,
   toEvent,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
+import { publicKeyToAddress } from "@towns-protocol/utils";
 import { riverRecoverPubKey } from "@towns-protocol/sdk";
 
 export type PrintStreamResponseEventsOpts = {

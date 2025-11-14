@@ -1,44 +1,19 @@
+import { clone, toBinary, toJson } from "@bufbuild/protobuf";
 import {
-  clone,
-  enumToJson,
-  fromJsonString,
-  toBinary,
-  toJson,
-  toJsonString,
-} from "@bufbuild/protobuf";
-import {
-  FullyReadMarkers,
-  FullyReadMarkersSchema,
   GetStreamResponse,
   GetStreamResponseSchema,
-  MemberPayload,
-  MembershipOpSchema,
-  MembershipReasonSchema,
   SnapshotSchema,
-  StreamEvent,
-  TagsSchema,
-  UserPayload,
-  UserSettingsPayload,
-  UserSettingsPayload_FullyReadMarkers,
 } from "@towns-protocol/proto";
 import {
-  getFallbackContent,
   getMiniblocks,
   isChannelStreamId,
   isSpaceStreamId,
-  makeRemoteTimelineEvent,
   townsEnv,
   makeStreamRpcClient,
-  ParsedEvent,
-  ParsedStreamResponse,
-  publicKeyToAddress,
-  riverRecoverPubKey,
   spaceIdFromChannelId,
   streamIdAsBytes,
-  streamIdAsString,
   StreamRpcClient,
   StreamStateView,
-  toEvent,
   unpackStream,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
@@ -47,8 +22,6 @@ import {
   RiverRegistry,
   SpaceAddressFromSpaceId,
 } from "@towns-protocol/web3";
-import { utils } from "ethers";
-import { bin_toHexString } from "@towns-protocol/utils";
 import {
   printStreamEventDetails,
   printStreamResponseEvents,
