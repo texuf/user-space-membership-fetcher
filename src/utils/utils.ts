@@ -269,3 +269,7 @@ export function specialPrint(
       console.log(event.payload.case);
   }
 }
+
+export function ensureHexPrefix(value: string): string {
+  return value.startsWith("0x") ? value : `0x${value}`;
+}

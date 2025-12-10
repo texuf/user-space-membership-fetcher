@@ -26,7 +26,7 @@ import {
 import { printStreamResponseEvents } from "./utils/utils";
 import { env } from "./env";
 
-const bListSpaceNames = false;
+const bListSpaceNames = true;
 
 const run = async () => {
   // Get the wallet address from the command line arguments
@@ -123,6 +123,7 @@ const run = async () => {
     )
     .map((kv) => kv[0]);
 
+  console.log("app address", streamView.userContent.appAddress);
   console.log("number of spaces", joined.filter(isSpaceStreamId).length);
   console.log("number of channels", joined.filter(isChannelStreamId).length);
   console.log("number of joined", joined.length);
@@ -134,7 +135,7 @@ const run = async () => {
       if (spaceInfo) {
         console.log(address, spaceInfo.name);
       } else {
-        console.log(address);
+        console.log(address, "no space info");
       }
     } else {
       console.log(address);
