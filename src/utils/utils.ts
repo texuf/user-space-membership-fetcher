@@ -12,6 +12,8 @@ import {
   MemberPayload,
   MembershipOpSchema,
   MembershipReasonSchema,
+  Miniblock,
+  MiniblockSchema,
   Snapshot,
   StreamEvent,
   TagsSchema,
@@ -408,37 +410,49 @@ export async function fetchMiniblocksFromRpc(
 
 const RIVER_CACHE_DIR = ".river";
 
-function ensureCacheDir(): void {
-  if (!fs.existsSync(RIVER_CACHE_DIR)) {
-    fs.mkdirSync(RIVER_CACHE_DIR, { recursive: true });
-  }
-}
-
-function getCacheFilePath(streamId: string, fromBlock: bigint, toBlock: bigint): string {
-  // Sanitize streamId for filename (remove 0x prefix if present)
+function getStreamCacheDir(streamId: string): string {
+  // Sanitize streamId for directory name (remove 0x prefix if present)
   const sanitizedStreamId = streamId.replace(/^0x/, "");
-  return path.join(RIVER_CACHE_DIR, `${sanitizedStreamId}_${fromBlock}_${toBlock}.bin`);
+  return path.join(RIVER_CACHE_DIR, sanitizedStreamId);
 }
 
-function loadCachedBatch(cacheFile: string): GetMiniblocksResponse | null {
-  if (!fs.existsSync(cacheFile)) {
+function ensureStreamCacheDir(streamId: string): string {
+  const dir = getStreamCacheDir(streamId);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function getMiniblockCachePath(streamId: string, blockNum: bigint): string {
+  const dir = getStreamCacheDir(streamId);
+  return path.join(dir, `${blockNum}.bin`);
+}
+
+function loadCachedMiniblock(streamId: string, blockNum: bigint): Miniblock | null {
+  const cachePath = getMiniblockCachePath(streamId, blockNum);
+  if (!fs.existsSync(cachePath)) {
     return null;
   }
   try {
-    const data = fs.readFileSync(cacheFile);
-    return fromBinary(GetMiniblocksResponseSchema, data);
+    const data = fs.readFileSync(cachePath);
+    return fromBinary(MiniblockSchema, data);
   } catch (e) {
-    console.log(`Failed to load cache file ${cacheFile}:`, e);
+    // Corrupted cache file, delete it
+    try {
+      fs.unlinkSync(cachePath);
+    } catch {}
     return null;
   }
 }
 
-function saveCacheBatch(cacheFile: string, response: GetMiniblocksResponse): void {
+function saveCachedMiniblock(streamId: string, blockNum: bigint, miniblock: Miniblock): void {
   try {
-    const data = toBinary(GetMiniblocksResponseSchema, response);
-    fs.writeFileSync(cacheFile, data);
+    const cachePath = getMiniblockCachePath(streamId, blockNum);
+    const data = toBinary(MiniblockSchema, miniblock);
+    fs.writeFileSync(cachePath, data);
   } catch (e) {
-    console.log(`Failed to save cache file ${cacheFile}:`, e);
+    // Ignore cache write errors
   }
 }
 
@@ -449,7 +463,8 @@ export interface GetCachedMiniblocksOptions {
 
 /**
  * Fetches miniblocks with disk caching.
- * Blocks are fetched from most recent to oldest and cached in .river folder.
+ * Individual miniblocks are cached in .river/{streamId}/{blockNum}.bin
+ * Only missing blocks are fetched from the network.
  *
  * @param client - The StreamRpcClient to use for fetching
  * @param streamId - The stream ID to fetch blocks for
@@ -466,54 +481,109 @@ export async function getCachedMiniblocks(
   options: GetCachedMiniblocksOptions = {}
 ): Promise<GetMiniblocksResponse[]> {
   const { batchSize = 50, onProgress } = options;
-  const batchSizeBigInt = BigInt(batchSize);
 
-  ensureCacheDir();
+  ensureStreamCacheDir(streamId);
 
-  const responses: GetMiniblocksResponse[] = [];
-  let currentTo = toBlock;
-  let reachedTerminus = false;
+  // Collect all miniblocks (cached + fetched)
+  const allMiniblocks: Map<bigint, Miniblock> = new Map();
+  const missingBlocks: bigint[] = [];
 
-  while (currentTo > fromBlock && !reachedTerminus) {
-    const currentFrom = currentTo - batchSizeBigInt < fromBlock
-      ? fromBlock
-      : currentTo - batchSizeBigInt;
-
-    const cacheFile = getCacheFilePath(streamId, currentFrom, currentTo);
-
-    // Try to load from cache first
-    const cachedResponse = loadCachedBatch(cacheFile);
-    let batchResponse: GetMiniblocksResponse;
-
-    if (cachedResponse) {
-      onProgress?.(`Cache hit: ${currentFrom} to ${currentTo}`);
-      batchResponse = cachedResponse;
+  // Check cache for each block, working backwards from most recent
+  for (let blockNum = toBlock - 1n; blockNum >= fromBlock; blockNum--) {
+    const cached = loadCachedMiniblock(streamId, blockNum);
+    if (cached) {
+      allMiniblocks.set(blockNum, cached);
     } else {
-      onProgress?.(`Fetching batch: ${currentFrom} to ${currentTo}...`);
-
-      batchResponse = await client.getMiniblocks({
-        streamId: streamIdAsBytes(streamId),
-        fromInclusive: currentFrom,
-        toExclusive: currentTo,
-      });
-
-      const byteLength = toBinary(GetMiniblocksResponseSchema, batchResponse).byteLength;
-      const mb = byteLength / 1024 / 1024;
-      onProgress?.(`Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`);
-
-      // Save to cache
-      saveCacheBatch(cacheFile, batchResponse);
-    }
-
-    // Insert at beginning to maintain order (oldest first)
-    responses.unshift(batchResponse);
-    currentTo = currentFrom;
-
-    if (batchResponse.terminus) {
-      onProgress?.(`Terminus reached at ${currentTo}`);
-      reachedTerminus = true;
+      missingBlocks.push(blockNum);
     }
   }
 
-  return responses;
+  const cachedCount = allMiniblocks.size;
+  const missingCount = missingBlocks.length;
+
+  if (cachedCount > 0) {
+    onProgress?.(`Cache: ${cachedCount} blocks cached, ${missingCount} missing`);
+  }
+
+  // Fetch missing blocks in batches (starting from most recent missing)
+  if (missingBlocks.length > 0) {
+    // Sort missing blocks descending (most recent first)
+    missingBlocks.sort((a, b) => (b > a ? 1 : b < a ? -1 : 0));
+
+    // Group consecutive missing blocks into ranges for efficient fetching
+    let rangeStart = missingBlocks[0];
+    let rangeEnd = missingBlocks[0] + 1n;
+    const ranges: Array<{ from: bigint; to: bigint }> = [];
+
+    for (let i = 1; i < missingBlocks.length; i++) {
+      const current = missingBlocks[i];
+      if (current === rangeStart - 1n) {
+        // Consecutive, extend range
+        rangeStart = current;
+      } else {
+        // Gap found, save current range and start new one
+        ranges.push({ from: rangeStart, to: rangeEnd });
+        rangeStart = current;
+        rangeEnd = current + 1n;
+      }
+    }
+    // Don't forget the last range
+    ranges.push({ from: rangeStart, to: rangeEnd });
+
+    // Fetch each range
+    for (const range of ranges) {
+      let currentTo = range.to;
+
+      while (currentTo > range.from) {
+        const currentFrom = currentTo - BigInt(batchSize) < range.from
+          ? range.from
+          : currentTo - BigInt(batchSize);
+
+        onProgress?.(`Fetching blocks ${currentFrom} to ${currentTo}...`);
+
+        const response = await client.getMiniblocks({
+          streamId: streamIdAsBytes(streamId),
+          fromInclusive: currentFrom,
+          toExclusive: currentTo,
+        });
+
+        const byteLength = toBinary(GetMiniblocksResponseSchema, response).byteLength;
+        const mb = byteLength / 1024 / 1024;
+        onProgress?.(`Fetched ${response.miniblocks.length} blocks (${mb.toFixed(2)} MB)`);
+
+        // Cache and collect each miniblock
+        for (let i = 0; i < response.miniblocks.length; i++) {
+          const miniblock = response.miniblocks[i];
+          // Block number is based on position in response
+          const blockNum = currentFrom + BigInt(i);
+          saveCachedMiniblock(streamId, blockNum, miniblock);
+          allMiniblocks.set(blockNum, miniblock);
+        }
+
+        if (response.terminus) {
+          onProgress?.(`Terminus reached`);
+          break;
+        }
+
+        currentTo = currentFrom;
+      }
+    }
+  }
+
+  // Convert to sorted array and wrap in response format for compatibility
+  const sortedBlockNums = [...allMiniblocks.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const sortedMiniblocks = sortedBlockNums.map((num) => allMiniblocks.get(num)!);
+
+  // Wrap in GetMiniblocksResponse format for compatibility with existing code
+  const response: GetMiniblocksResponse = {
+    $typeName: "river.GetMiniblocksResponse",
+    miniblocks: sortedMiniblocks,
+    terminus: false,
+    fromInclusive: fromBlock,
+    limit: toBlock - fromBlock,
+    omitSnapshots: true,
+    snapshots: {},
+  };
+
+  return [response];
 }
