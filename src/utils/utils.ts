@@ -1,13 +1,15 @@
 import { utils } from "ethers";
 import { bin_toHexString } from "@towns-protocol/utils";
-import { enumToJson, fromJsonString, toJsonString } from "@bufbuild/protobuf";
-
+import { enumToJson, fromJsonString, toBinary, toJsonString } from "@bufbuild/protobuf";
+import { snakeCase } from 'lodash-es'
 import {
   FullyReadMarkers,
   FullyReadMarkersSchema,
+  GetMiniblocksResponseSchema,
   MemberPayload,
   MembershipOpSchema,
   MembershipReasonSchema,
+  Snapshot,
   StreamEvent,
   TagsSchema,
   UserPayload,
@@ -15,12 +17,19 @@ import {
   UserSettingsPayload_FullyReadMarkers,
 } from "@towns-protocol/proto";
 import {
+  ExclusionFilter,
   getFallbackContent,
   makeRemoteTimelineEvent,
   ParsedEvent,
+  ParsedMiniblock,
   ParsedStreamResponse,
+  streamIdAsBytes,
   streamIdAsString,
+  StreamRpcClient,
   toEvent,
+  UnpackEnvelopeOpts,
+  unpackMiniblock,
+  unpackSnapshot,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
 import { publicKeyToAddress } from "@towns-protocol/utils";
@@ -272,4 +281,120 @@ export function specialPrint(
 
 export function ensureHexPrefix(value: string): string {
   return value.startsWith("0x") ? value : `0x${value}`;
+}
+
+
+export async function getMiniblocks(
+  client: StreamRpcClient,
+  streamId: string | Uint8Array,
+  fromInclusive: bigint,
+  toExclusive: bigint,
+  omitSnapshots: boolean,
+  exclusionFilter: ExclusionFilter | undefined,
+  unpackEnvelopeOpts: UnpackEnvelopeOpts | undefined,
+): Promise<{
+  miniblocks: ParsedMiniblock[]
+  terminus: boolean
+  snapshots?: Record<string, Snapshot>
+}> {
+  const allMiniblocks: ParsedMiniblock[] = []
+  let currentFromInclusive = fromInclusive
+  let reachedTerminus = false
+  const parsedSnapshots: Record<string, Snapshot> = {}
+
+  while (currentFromInclusive < toExclusive) {
+      const { miniblocks, terminus, nextFromInclusive, snapshots } = await fetchMiniblocksFromRpc(
+          client,
+          streamId,
+          currentFromInclusive,
+          toExclusive,
+          omitSnapshots,
+          exclusionFilter,
+          unpackEnvelopeOpts,
+      )
+
+      allMiniblocks.push(...miniblocks)
+      if (!omitSnapshots) {
+          Object.entries(snapshots).forEach(([key, snapshot]) => {
+              parsedSnapshots[key] = snapshot
+          })
+      }
+
+      // Set the terminus to true if we got at least one response with reached terminus
+      // The behaviour around this flag is not implemented yet
+      if (terminus && !reachedTerminus) {
+          reachedTerminus = true
+      }
+
+      if (currentFromInclusive === nextFromInclusive) {
+          break
+      }
+
+      currentFromInclusive = nextFromInclusive
+  }
+
+  return {
+      miniblocks: allMiniblocks,
+      terminus: reachedTerminus,
+      snapshots: parsedSnapshots,
+  }
+}
+
+export async function fetchMiniblocksFromRpc(
+  client: StreamRpcClient,
+  streamId: string | Uint8Array,
+  fromInclusive: bigint,
+  toExclusive: bigint,
+  omitSnapshots: boolean,
+  exclusionFilter: ExclusionFilter | undefined,
+  unpackEnvelopeOpts: UnpackEnvelopeOpts | undefined,
+) {
+  const response = await client.getMiniblocks({
+      streamId: streamIdAsBytes(streamId),
+      fromInclusive,
+      toExclusive,
+      omitSnapshots,
+      exclusionFilter:
+          exclusionFilter?.map(({ payload, content }) => ({
+              payload: snakeCase(payload),
+              content: snakeCase(content),
+          })) ?? [],
+  })
+
+  const byteLength = toBinary(
+    GetMiniblocksResponseSchema,
+    response
+  ).byteLength;
+  const mb = byteLength / 1024 / 1024;
+  console.log(
+    `Batch ${fromInclusive} to ${toExclusive} size: ${mb.toFixed(2)} MB`
+  );
+
+  const miniblocks: ParsedMiniblock[] = []
+  const parsedSnapshots: Record<string, Snapshot> = {}
+  for (const miniblock of response.miniblocks) {
+      const unpackedMiniblock = await unpackMiniblock(miniblock, unpackEnvelopeOpts)
+      const unpackedMiniblockNum = unpackedMiniblock.header.miniblockNum.toString()
+      miniblocks.push(unpackedMiniblock)
+      if (!omitSnapshots && response.snapshots[unpackedMiniblockNum]) {
+          parsedSnapshots[unpackedMiniblockNum] = (
+              await unpackSnapshot(
+                  unpackedMiniblock.events.at(-1)?.event,
+                  unpackedMiniblock.header.snapshotHash,
+                  response.snapshots[unpackedMiniblockNum],
+                  unpackEnvelopeOpts,
+              )
+          ).snapshot
+      }
+  }
+
+  const respondedFromInclusive =
+      miniblocks.length > 0 ? miniblocks[0].header.miniblockNum : fromInclusive
+
+  return {
+      miniblocks: miniblocks,
+      terminus: response.terminus,
+      nextFromInclusive: respondedFromInclusive + BigInt(response.miniblocks.length),
+      snapshots: parsedSnapshots,
+  }
 }

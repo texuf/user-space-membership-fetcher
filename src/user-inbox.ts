@@ -8,7 +8,6 @@ import {
   streamIdAsString,
   unpackMiniblock,
   getUserIdFromStreamId,
-  getMiniblocks,
 } from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
@@ -431,11 +430,6 @@ function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
-function truncate(str: string, len: number): string {
-  if (str.length <= len) return str;
-  return str.substring(0, len - 3) + "...";
-}
-
 function printOverview(analysis: InboxAnalysis): void {
   console.log(chalk.bold.cyan("\n" + "═".repeat(80)));
   console.log(chalk.bold.cyan("  USER INBOX ANALYSIS REPORT"));
@@ -496,12 +490,12 @@ function printSessionDistribution(analysis: InboxAnalysis): void {
       chalk.white("Stream ID"),
       chalk.white("Sessions"),
       chalk.white("Unique"),
-      chalk.white("Duplicates"),
+      chalk.white("Dups"),
       chalk.white("Senders"),
-      chalk.white("Algorithms"),
+      chalk.white("Algo"),
       chalk.white("Time Span"),
     ],
-    colWidths: [22, 10, 10, 12, 10, 12, 14],
+    wordWrap: true,
   });
 
   const sortedStreams = [...analysis.streams.values()].sort(
@@ -513,7 +507,7 @@ function printSessionDistribution(analysis: InboxAnalysis): void {
     const timeSpan = stream.lastEventTimestamp - stream.firstEventTimestamp;
 
     streamTable.push([
-      truncate(stream.streamId, 20),
+      stream.streamId,
       stream.sessionCount.toString(),
       stream.uniqueSessionIds.size.toString(),
       duplicateCount > 0
@@ -548,7 +542,7 @@ function printDeviceAnalysis(analysis: InboxAnalysis): void {
       chalk.white("Last Ack Time"),
       chalk.white("Status"),
     ],
-    colWidths: [22, 10, 10, 16, 22, 12],
+    wordWrap: true,
   });
 
   const sortedDevices = [...analysis.devices.values()].sort(
@@ -564,7 +558,7 @@ function printDeviceAnalysis(analysis: InboxAnalysis): void {
         : "-";
 
     deviceTable.push([
-      truncate(device.deviceKey, 20),
+      device.deviceKey,
       device.sessionsReceived.toString(),
       device.uniqueSenders.size.toString(),
       device.lastAckMiniblock.toString(),
@@ -614,13 +608,13 @@ function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
   const dupTable = new Table({
     head: [
       chalk.white("Session ID"),
+      chalk.white("Stream ID"),
       chalk.white("Count"),
       chalk.white("Senders"),
-      chalk.white("Streams"),
       chalk.white("First Seen"),
       chalk.white("Last Seen"),
     ],
-    colWidths: [22, 8, 10, 10, 22, 22],
+    wordWrap: true,
   });
 
   const sortedDuplicates = [...analysis.duplicateSessionIds.entries()]
@@ -629,14 +623,14 @@ function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
 
   for (const [sessionId, sessions] of sortedDuplicates) {
     const senders = new Set(sessions.map((s) => s.creatorUserId));
-    const streams = new Set(sessions.map((s) => s.streamId));
+    const streams = [...new Set(sessions.map((s) => s.streamId))];
     const timestamps = sessions.map((s) => s.timestamp).sort();
 
     dupTable.push([
-      truncate(sessionId, 20),
+      sessionId,
+      streams.join("\n"),
       chalk.red(sessions.length.toString()),
       senders.size.toString(),
-      streams.size.toString(),
       new Date(timestamps[0]).toISOString().substring(0, 19),
       new Date(timestamps[timestamps.length - 1])
         .toISOString()
@@ -696,7 +690,7 @@ function printAckAnalysis(analysis: InboxAnalysis): void {
       chalk.white("Max Gap"),
       chalk.white("Last Ack Block"),
     ],
-    colWidths: [22, 12, 18, 12, 18],
+    wordWrap: true,
   });
 
   for (const [deviceKey, acks] of analysis.acksByDevice) {
@@ -716,7 +710,7 @@ function printAckAnalysis(analysis: InboxAnalysis): void {
     const maxGap = Math.max(...gaps);
 
     ackFreqTable.push([
-      truncate(deviceKey, 20),
+      deviceKey,
       acks.length.toString(),
       avgGap.toFixed(1),
       maxGap.toString(),
@@ -825,16 +819,12 @@ function printSenderAnalysis(analysis: InboxAnalysis): void {
       chalk.white("Sessions Sent"),
       chalk.white("% of Total"),
     ],
-    colWidths: [50, 16, 14],
+    wordWrap: true,
   });
 
   for (const [sender, count] of sortedSenders) {
     const percentage = ((count / analysis.totalSessions) * 100).toFixed(1);
-    senderTable.push([
-      truncate(sender, 48),
-      count.toString(),
-      `${percentage}%`,
-    ]);
+    senderTable.push([sender, count.toString(), `${percentage}%`]);
   }
 
   console.log(senderTable.toString());
@@ -943,6 +933,10 @@ const run = async () => {
 
     responses.push(batchBlocks);
     currentFrom = currentTo;
+
+    if (batchBlocks.terminus) {
+      break;
+    }
   }
 
   const total = responses.reduce(
