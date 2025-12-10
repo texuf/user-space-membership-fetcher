@@ -6,6 +6,7 @@ build({
     inbox: "./src/user-inbox.ts",
     operators: "./src/operators.ts",
     permissions: "./src/permissions.ts",
+    solicitations: "./src/solicitations.ts",
     space: "./src/space.ts",
     stream: "./src/stream.ts",
     tips: "./src/tips.ts",
