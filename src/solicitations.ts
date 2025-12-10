@@ -109,11 +109,13 @@ function createEmptyAnalysis(): SolicitationAnalysis {
   };
 }
 
+// Track all seen content cases for debugging
+const seenContentCases = new Map<string, number>();
+
 function processEvent(
   event: ParsedEvent,
   analysis: SolicitationAnalysis,
-  miniblockNum: bigint,
-  filterUserAddress?: string
+  miniblockNum: bigint
 ): void {
   const payload = event.event.payload;
   if (payload?.case !== "memberPayload") {
@@ -126,6 +128,10 @@ function processEvent(
 
   const content = payload.value.content;
 
+  // Debug: track all content cases we see
+  const caseType = content?.case || "undefined";
+  seenContentCases.set(caseType, (seenContentCases.get(caseType) || 0) + 1);
+
   if (content?.case === "keySolicitation") {
     processSolicitation(
       event,
@@ -135,14 +141,14 @@ function processEvent(
       miniblockNum
     );
   } else if (content?.case === "keyFulfillment") {
-    processFulfillment(
-      event,
-      content.value,
-      analysis,
-      timestamp,
-      miniblockNum,
-      filterUserAddress
-    );
+    processFulfillment(event, content.value, analysis, timestamp, miniblockNum);
+  }
+}
+
+function printDebugContentCases(): void {
+  console.log(chalk.bold.gray("\n  DEBUG: Content cases seen in memberPayload:"));
+  for (const [caseType, count] of seenContentCases) {
+    console.log(chalk.gray(`    ${caseType}: ${count}`));
   }
 }
 
@@ -203,18 +209,9 @@ function processFulfillment(
   },
   analysis: SolicitationAnalysis,
   timestamp: number,
-  miniblockNum: bigint,
-  filterUserAddress?: string
+  miniblockNum: bigint
 ): void {
   const targetUserAddress = userIdFromAddress(fulfillment.userAddress);
-
-  // If filtering by user address, skip non-matching fulfillments
-  if (
-    filterUserAddress &&
-    targetUserAddress.toLowerCase() !== filterUserAddress.toLowerCase()
-  ) {
-    return;
-  }
 
   analysis.totalFulfillments++;
 
@@ -372,7 +369,11 @@ function printOverview(analysis: SolicitationAnalysis, streamId: string): void {
   console.log(chalk.bold.cyan("  KEY SOLICITATION & FULFILLMENT ANALYSIS"));
   console.log(chalk.bold.cyan("═".repeat(100)));
 
-  const duration = analysis.timeRangeEnd - analysis.timeRangeStart;
+  const hasEvents =
+    analysis.timeRangeStart !== Infinity && analysis.timeRangeEnd !== 0;
+  const duration = hasEvents
+    ? analysis.timeRangeEnd - analysis.timeRangeStart
+    : 0;
 
   const overviewTable = new Table({
     chars: { mid: "", "left-mid": "", "mid-mid": "", "right-mid": "" },
@@ -382,11 +383,13 @@ function printOverview(analysis: SolicitationAnalysis, streamId: string): void {
     [chalk.gray("Stream ID"), streamId],
     [
       chalk.gray("Time Range"),
-      `${new Date(analysis.timeRangeStart).toISOString()} → ${new Date(
-        analysis.timeRangeEnd
-      ).toISOString()}`,
+      hasEvents
+        ? `${new Date(analysis.timeRangeStart).toISOString()} → ${new Date(
+            analysis.timeRangeEnd
+          ).toISOString()}`
+        : chalk.gray("No events found"),
     ],
-    [chalk.gray("Duration"), formatDuration(duration)],
+    [chalk.gray("Duration"), hasEvents ? formatDuration(duration) : "-"],
     [
       chalk.gray("Total Solicitations"),
       chalk.yellow(analysis.totalSolicitations.toString()),
@@ -398,6 +401,12 @@ function printOverview(analysis: SolicitationAnalysis, streamId: string): void {
     [
       chalk.gray("Unique Soliciting Devices"),
       chalk.magenta(analysis.solicitationsByDevice.size.toString()),
+    ],
+    [
+      chalk.gray("Unique Soliciting Users"),
+      chalk.magenta(
+        new Set(analysis.solicitations.map((s) => s.creatorUserId)).size.toString()
+      ),
     ],
     [
       chalk.gray("Unique Responders"),
@@ -877,31 +886,20 @@ function printAnomalies(analysis: SolicitationAnalysis): void {
 
 const run = async () => {
   const streamIdParam = process.argv[2];
-  const userAddressParam = process.argv[3];
-  const blocksToFetch = parseInt(process.argv[4] || "400", 10);
+  const blocksToFetch = parseInt(process.argv[3] || "400", 10);
 
   if (!streamIdParam) {
     console.error(
-      chalk.red(
-        "Usage: yarn solicitations <streamId> [userAddress] [blocks_to_fetch]"
-      )
+      chalk.red("Usage: yarn solicitations <streamId> [blocks_to_fetch]")
     );
     console.error(chalk.gray("  streamId: The stream to analyze"));
-    console.error(
-      chalk.gray("  userAddress: Optional - filter fulfillments to this user")
-    );
-    console.error(chalk.gray("  blocks_to_fetch: defaults to 500"));
+    console.error(chalk.gray("  blocks_to_fetch: defaults to 400"));
     process.exit(1);
   }
 
   console.log(
     chalk.cyan(`\nAnalyzing solicitations for stream ${streamIdParam}`)
   );
-  if (userAddressParam) {
-    console.log(
-      chalk.cyan(`Filtering fulfillments for user: ${userAddressParam}`)
-    );
-  }
   console.log(chalk.gray(`Fetching last ${blocksToFetch} miniblocks...\n`));
 
   // Setup
@@ -990,12 +988,7 @@ const run = async () => {
       });
 
       for (const event of unpacked.events) {
-        processEvent(
-          event,
-          analysis,
-          unpacked.header.miniblockNum,
-          userAddressParam
-        );
+        processEvent(event, analysis, unpacked.header.miniblockNum);
       }
     }
   }
@@ -1005,6 +998,7 @@ const run = async () => {
 
   // Print reports
   printOverview(analysis, streamIdParam);
+  printDebugContentCases();
   printSolicitationsByDevice(analysis);
   printFulfillmentsByResponder(analysis);
   printFulfillmentsByTargetUser(analysis);
