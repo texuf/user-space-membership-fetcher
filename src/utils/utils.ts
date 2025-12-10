@@ -5,6 +5,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { snakeCase } from 'lodash-es'
 import {
+  Envelope,
+  EnvelopeSchema,
   FullyReadMarkers,
   FullyReadMarkersSchema,
   GetMiniblocksResponse,
@@ -429,6 +431,11 @@ function getMiniblockCachePath(streamId: string, blockNum: bigint): string {
   return path.join(dir, `${blockNum}.bin`);
 }
 
+function getSnapshotCachePath(streamId: string, blockNum: bigint): string {
+  const dir = getStreamCacheDir(streamId);
+  return path.join(dir, `${blockNum}.snapshot.bin`);
+}
+
 function loadCachedMiniblock(streamId: string, blockNum: bigint): Miniblock | null {
   const cachePath = getMiniblockCachePath(streamId, blockNum);
   if (!fs.existsSync(cachePath)) {
@@ -437,6 +444,23 @@ function loadCachedMiniblock(streamId: string, blockNum: bigint): Miniblock | nu
   try {
     const data = fs.readFileSync(cachePath);
     return fromBinary(MiniblockSchema, data);
+  } catch (e) {
+    // Corrupted cache file, delete it
+    try {
+      fs.unlinkSync(cachePath);
+    } catch {}
+    return null;
+  }
+}
+
+function loadCachedSnapshot(streamId: string, blockNum: bigint): Envelope | null {
+  const cachePath = getSnapshotCachePath(streamId, blockNum);
+  if (!fs.existsSync(cachePath)) {
+    return null;
+  }
+  try {
+    const data = fs.readFileSync(cachePath);
+    return fromBinary(EnvelopeSchema, data);
   } catch (e) {
     // Corrupted cache file, delete it
     try {
@@ -456,6 +480,16 @@ function saveCachedMiniblock(streamId: string, blockNum: bigint, miniblock: Mini
   }
 }
 
+function saveCachedSnapshot(streamId: string, blockNum: bigint, snapshot: Envelope): void {
+  try {
+    const cachePath = getSnapshotCachePath(streamId, blockNum);
+    const data = toBinary(EnvelopeSchema, snapshot);
+    fs.writeFileSync(cachePath, data);
+  } catch (e) {
+    // Ignore cache write errors
+  }
+}
+
 export interface GetCachedMiniblocksOptions {
   batchSize?: number;
   onProgress?: (message: string) => void;
@@ -464,6 +498,7 @@ export interface GetCachedMiniblocksOptions {
 /**
  * Fetches miniblocks with disk caching.
  * Individual miniblocks are cached in .river/{streamId}/{blockNum}.bin
+ * Snapshots are cached in .river/{streamId}/{blockNum}.snapshot.bin
  * Only missing blocks are fetched from the network.
  *
  * @param client - The StreamRpcClient to use for fetching
@@ -484,8 +519,9 @@ export async function getCachedMiniblocks(
 
   ensureStreamCacheDir(streamId);
 
-  // Collect all miniblocks (cached + fetched)
+  // Collect all miniblocks and snapshots (cached + fetched)
   const allMiniblocks: Map<bigint, Miniblock> = new Map();
+  const allSnapshots: Map<string, Envelope> = new Map();
   const missingBlocks: bigint[] = [];
 
   // Check cache for each block, working backwards from most recent
@@ -493,6 +529,11 @@ export async function getCachedMiniblocks(
     const cached = loadCachedMiniblock(streamId, blockNum);
     if (cached) {
       allMiniblocks.set(blockNum, cached);
+      // Also try to load cached snapshot for this block
+      const cachedSnapshot = loadCachedSnapshot(streamId, blockNum);
+      if (cachedSnapshot) {
+        allSnapshots.set(blockNum.toString(), cachedSnapshot);
+      }
     } else {
       missingBlocks.push(blockNum);
     }
@@ -560,6 +601,14 @@ export async function getCachedMiniblocks(
           allMiniblocks.set(blockNum, miniblock);
         }
 
+        // Cache and collect snapshots
+        for (const [blockNumStr, snapshot] of Object.entries(response.snapshots)) {
+          const blockNum = BigInt(blockNumStr);
+          const snapshotEnvelope = snapshot as Envelope;
+          saveCachedSnapshot(streamId, blockNum, snapshotEnvelope);
+          allSnapshots.set(blockNumStr, snapshotEnvelope);
+        }
+
         if (response.terminus) {
           onProgress?.(`Terminus reached`);
           break;
@@ -574,6 +623,12 @@ export async function getCachedMiniblocks(
   const sortedBlockNums = [...allMiniblocks.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const sortedMiniblocks = sortedBlockNums.map((num) => allMiniblocks.get(num)!);
 
+  // Convert snapshots map to object format
+  const snapshotsObj: { [key: string]: Envelope } = {};
+  for (const [key, value] of allSnapshots) {
+    snapshotsObj[key] = value;
+  }
+
   // Wrap in GetMiniblocksResponse format for compatibility with existing code
   const response: GetMiniblocksResponse = {
     $typeName: "river.GetMiniblocksResponse",
@@ -581,8 +636,8 @@ export async function getCachedMiniblocks(
     terminus: false,
     fromInclusive: fromBlock,
     limit: toBlock - fromBlock,
-    omitSnapshots: true,
-    snapshots: {},
+    omitSnapshots: false,
+    snapshots: snapshotsObj,
   };
 
   return [response];
