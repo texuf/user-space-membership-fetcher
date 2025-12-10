@@ -115,16 +115,13 @@ const seenContentCases = new Map<string, number>();
 function processEvent(
   event: ParsedEvent,
   analysis: SolicitationAnalysis,
-  miniblockNum: bigint
+  miniblockNum: bigint,
+  filterUserAddress?: string
 ): void {
   const payload = event.event.payload;
   if (payload?.case !== "memberPayload") {
     return;
   }
-
-  const timestamp = Number(event.event.createdAtEpochMs);
-  analysis.timeRangeStart = Math.min(analysis.timeRangeStart, timestamp);
-  analysis.timeRangeEnd = Math.max(analysis.timeRangeEnd, timestamp);
 
   const content = payload.value.content;
 
@@ -132,7 +129,15 @@ function processEvent(
   const caseType = content?.case || "undefined";
   seenContentCases.set(caseType, (seenContentCases.get(caseType) || 0) + 1);
 
+  const timestamp = Number(event.event.createdAtEpochMs);
+
   if (content?.case === "keySolicitation") {
+    // Filter: only include solicitations FROM the filtered user
+    if (filterUserAddress && event.creatorUserId.toLowerCase() !== filterUserAddress) {
+      return;
+    }
+    analysis.timeRangeStart = Math.min(analysis.timeRangeStart, timestamp);
+    analysis.timeRangeEnd = Math.max(analysis.timeRangeEnd, timestamp);
     processSolicitation(
       event,
       content.value,
@@ -141,6 +146,13 @@ function processEvent(
       miniblockNum
     );
   } else if (content?.case === "keyFulfillment") {
+    // Filter: only include fulfillments TO the filtered user
+    const targetUserAddress = userIdFromAddress(content.value.userAddress);
+    if (filterUserAddress && targetUserAddress.toLowerCase() !== filterUserAddress) {
+      return;
+    }
+    analysis.timeRangeStart = Math.min(analysis.timeRangeStart, timestamp);
+    analysis.timeRangeEnd = Math.max(analysis.timeRangeEnd, timestamp);
     processFulfillment(event, content.value, analysis, timestamp, miniblockNum);
   }
 }
@@ -886,13 +898,21 @@ function printAnomalies(analysis: SolicitationAnalysis): void {
 
 const run = async () => {
   const streamIdParam = process.argv[2];
-  const blocksToFetch = parseInt(process.argv[3] || "400", 10);
+  const userFilterParam = process.argv[3];
+  // If 3rd param looks like a number, it's blocks_to_fetch; otherwise it's a user filter
+  const isUserFilter = userFilterParam && !(/^\d+$/.test(userFilterParam));
+  const filterUserAddress = isUserFilter ? userFilterParam.toLowerCase() : undefined;
+  const blocksToFetch = parseInt(
+    isUserFilter ? (process.argv[4] || "400") : (userFilterParam || "400"),
+    10
+  );
 
   if (!streamIdParam) {
     console.error(
-      chalk.red("Usage: yarn solicitations <streamId> [blocks_to_fetch]")
+      chalk.red("Usage: yarn solicitations <streamId> [userAddress] [blocks_to_fetch]")
     );
     console.error(chalk.gray("  streamId: The stream to analyze"));
+    console.error(chalk.gray("  userAddress: Optional - filter to solicitations FROM or fulfillments TO this user"));
     console.error(chalk.gray("  blocks_to_fetch: defaults to 400"));
     process.exit(1);
   }
@@ -900,6 +920,9 @@ const run = async () => {
   console.log(
     chalk.cyan(`\nAnalyzing solicitations for stream ${streamIdParam}`)
   );
+  if (filterUserAddress) {
+    console.log(chalk.cyan(`Filtering for user: ${filterUserAddress}`));
+  }
   console.log(chalk.gray(`Fetching last ${blocksToFetch} miniblocks...\n`));
 
   // Setup
@@ -988,7 +1011,7 @@ const run = async () => {
       });
 
       for (const event of unpacked.events) {
-        processEvent(event, analysis, unpacked.header.miniblockNum);
+        processEvent(event, analysis, unpacked.header.miniblockNum, filterUserAddress);
       }
     }
   }
