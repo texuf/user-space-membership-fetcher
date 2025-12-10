@@ -64,6 +64,16 @@ interface StreamStats {
   lastEventTimestamp: number;
 }
 
+interface DeviceSessionDuplicate {
+  deviceKey: string;
+  sessionId: string;
+  count: number;
+  streamId: string;
+  senders: Set<string>;
+  firstSeen: number;
+  lastSeen: number;
+}
+
 interface InboxAnalysis {
   // Overview
   totalEvents: number;
@@ -80,6 +90,10 @@ interface InboxAnalysis {
   // Device analysis
   devices: Map<string, DeviceStats>;
   deviceAcks: Map<string, AckInfo[]>;
+  // Per-device session tracking: "deviceKey:sessionId" -> count (lightweight)
+  deviceSessionCounts: Map<string, { count: number; streamId: string; senders: Set<string>; firstSeen: number; lastSeen: number }>;
+  // Duplicates per device (same session to same device twice)
+  deviceSessionDuplicates: DeviceSessionDuplicate[];
 
   // Stream analysis
   streams: Map<string, StreamStats>;
@@ -121,6 +135,8 @@ function createEmptyAnalysis(): InboxAnalysis {
     duplicateSessionIds: new Map(),
     devices: new Map(),
     deviceAcks: new Map(),
+    deviceSessionCounts: new Map(),
+    deviceSessionDuplicates: [],
     streams: new Map(),
     acks: [],
     acksByDevice: new Map(),
@@ -198,7 +214,7 @@ function processGroupEncryptionSession(
     }
     analysis.sessionIdOccurrences.get(sessionId)!.push(sessionInfo);
 
-    // Update device stats
+    // Update device stats and track per-device session occurrences
     for (const deviceKey of deviceKeys) {
       if (!analysis.devices.has(deviceKey)) {
         analysis.devices.set(deviceKey, {
@@ -222,6 +238,23 @@ function processGroupEncryptionSession(
         timestamp
       );
       deviceStats.uniqueSenders.add(event.creatorUserId);
+
+      // Track per-device session counts for duplicate detection (lightweight)
+      const countKey = `${deviceKey}:${sessionId}`;
+      const existing = analysis.deviceSessionCounts.get(countKey);
+      if (existing) {
+        existing.count++;
+        existing.senders.add(event.creatorUserId);
+        existing.lastSeen = Math.max(existing.lastSeen, timestamp);
+      } else {
+        analysis.deviceSessionCounts.set(countKey, {
+          count: 1,
+          streamId,
+          senders: new Set([event.creatorUserId]),
+          firstSeen: timestamp,
+          lastSeen: timestamp,
+        });
+      }
     }
 
     // Update stream stats
@@ -305,27 +338,35 @@ function processAck(
 }
 
 function detectAnomalies(analysis: InboxAnalysis): void {
-  // 1. Detect duplicate session IDs
-  for (const [sessionId, sessions] of analysis.sessionIdOccurrences) {
-    if (sessions.length > 1) {
-      analysis.duplicateSessionIds.set(sessionId, sessions);
+  // 1. Detect duplicate session IDs PER DEVICE (same session to same device twice)
+  for (const [countKey, data] of analysis.deviceSessionCounts) {
+    if (data.count > 1) {
+      const [deviceKey, sessionId] = countKey.split(":");
+
+      // This is a true duplicate: same session ID sent to same device multiple times
+      analysis.deviceSessionDuplicates.push({
+        deviceKey,
+        sessionId,
+        count: data.count,
+        streamId: data.streamId,
+        senders: data.senders,
+        firstSeen: data.firstSeen,
+        lastSeen: data.lastSeen,
+      });
 
       // Check if duplicates are from same sender (more concerning)
-      const senders = new Set(sessions.map((s) => s.creatorUserId));
-      const severity = senders.size === 1 ? "high" : "medium";
+      const severity = data.senders.size === 1 ? "high" : "medium";
 
       analysis.anomalies.push({
         type: "duplicate_session",
         severity,
-        description: `Session ID ${sessionId.substring(0, 16)}... appears ${
-          sessions.length
-        } times`,
+        description: `Session ${sessionId.substring(0, 16)}... sent to device ${deviceKey.substring(0, 12)}... ${data.count} times`,
         details: {
+          deviceKey,
           sessionId,
-          occurrences: sessions.length,
-          senders: Array.from(senders),
-          streams: [...new Set(sessions.map((s) => s.streamId))],
-          timestamps: sessions.map((s) => new Date(s.timestamp).toISOString()),
+          occurrences: data.count,
+          senders: Array.from(data.senders),
+          streamId: data.streamId,
         },
       });
     }
@@ -524,9 +565,20 @@ function printSessionDistribution(analysis: InboxAnalysis): void {
   }
 }
 
+function formatDateTime(timestamp: number): string {
+  if (timestamp <= 0) return "-";
+  const date = new Date(timestamp);
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const day = date.getDate().toString().padStart(2, "0");
+  const hours = date.getHours().toString().padStart(2, "0");
+  const mins = date.getMinutes().toString().padStart(2, "0");
+  const secs = date.getSeconds().toString().padStart(2, "0");
+  return `${month} ${day} ${hours}:${mins}:${secs}`;
+}
+
 function printDeviceAnalysis(analysis: InboxAnalysis): void {
   console.log(chalk.bold.magenta("\n" + "─".repeat(80)));
-  console.log(chalk.bold.magenta("  DEVICE ANALYSIS"));
+  console.log(chalk.bold.magenta("  DEVICE ANALYSIS (ALL DEVICES)"));
   console.log(chalk.bold.magenta("─".repeat(80)));
 
   const deviceTable = new Table({
@@ -534,78 +586,100 @@ function printDeviceAnalysis(analysis: InboxAnalysis): void {
       chalk.white("Device Key"),
       chalk.white("Sessions"),
       chalk.white("Senders"),
-      chalk.white("Last Ack Block"),
-      chalk.white("Last Ack Time"),
+      chalk.white("First Seen"),
+      chalk.white("Last Seen"),
+      chalk.white("Last Ack"),
+      chalk.white("Ack Block"),
       chalk.white("Status"),
     ],
     wordWrap: true,
   });
 
   const sortedDevices = [...analysis.devices.values()].sort(
-    (a, b) => b.sessionsReceived - a.sessionsReceived
+    (a, b) => b.lastSeenTimestamp - a.lastSeenTimestamp
   );
 
-  for (const device of sortedDevices.slice(0, 15)) {
+  // Count duplicates per device
+  const duplicatesPerDevice = new Map<string, number>();
+  for (const dup of analysis.deviceSessionDuplicates) {
+    duplicatesPerDevice.set(
+      dup.deviceKey,
+      (duplicatesPerDevice.get(dup.deviceKey) || 0) + 1
+    );
+  }
+
+  for (const device of sortedDevices) {
     const hasAck = device.lastAckMiniblock > 0n;
-    const status = hasAck ? chalk.green("Active") : chalk.yellow("No Acks");
-    const lastAckTime =
-      device.lastAckTimestamp > 0
-        ? new Date(device.lastAckTimestamp).toISOString().substring(0, 19)
-        : "-";
+    const dupCount = duplicatesPerDevice.get(device.deviceKey) || 0;
+
+    let status: string;
+    if (dupCount > 0) {
+      status = chalk.red(`${dupCount} dups`);
+    } else if (hasAck) {
+      status = chalk.green("Active");
+    } else {
+      status = chalk.yellow("No Acks");
+    }
 
     deviceTable.push([
       device.deviceKey,
       device.sessionsReceived.toString(),
       device.uniqueSenders.size.toString(),
-      device.lastAckMiniblock.toString(),
-      lastAckTime,
+      formatDateTime(device.firstSeenTimestamp),
+      formatDateTime(device.lastSeenTimestamp),
+      formatDateTime(device.lastAckTimestamp),
+      device.lastAckMiniblock > 0n ? device.lastAckMiniblock.toString() : "-",
       status,
     ]);
   }
 
   console.log(deviceTable.toString());
 
-  if (sortedDevices.length > 15) {
-    console.log(
-      chalk.gray(`  ... and ${sortedDevices.length - 15} more devices`)
-    );
-  }
-
   // Device summary
   const activeDevices = [...analysis.devices.values()].filter(
     (d) => d.lastAckMiniblock > 0n
   ).length;
   const inactiveDevices = analysis.devices.size - activeDevices;
+  const devicesWithDups = duplicatesPerDevice.size;
 
   console.log(
     chalk.gray(
-      `\n  Summary: ${chalk.green(
-        activeDevices.toString()
-      )} active devices (with acks), ${chalk.yellow(
-        inactiveDevices.toString()
-      )} inactive devices`
+      `\n  Summary: ${analysis.devices.size} total devices | ` +
+        `${chalk.green(activeDevices.toString())} active (with acks) | ` +
+        `${chalk.yellow(inactiveDevices.toString())} inactive | ` +
+        (devicesWithDups > 0
+          ? chalk.red(`${devicesWithDups} with duplicate sessions`)
+          : chalk.green("0 with duplicates"))
     )
   );
 }
 
 function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
-  if (analysis.duplicateSessionIds.size === 0) {
+  if (analysis.deviceSessionDuplicates.length === 0) {
     console.log(chalk.bold.green("\n" + "─".repeat(80)));
-    console.log(chalk.bold.green("  DUPLICATE SESSION ANALYSIS"));
+    console.log(chalk.bold.green("  DUPLICATE SESSION ANALYSIS (PER DEVICE)"));
     console.log(chalk.bold.green("─".repeat(80)));
-    console.log(chalk.green("  ✓ No duplicate session IDs detected"));
+    console.log(
+      chalk.green("  ✓ No duplicate sessions detected (same session to same device)")
+    );
     return;
   }
 
   console.log(chalk.bold.red("\n" + "─".repeat(80)));
-  console.log(chalk.bold.red("  DUPLICATE SESSION ANALYSIS"));
+  console.log(chalk.bold.red("  DUPLICATE SESSION ANALYSIS (PER DEVICE)"));
   console.log(chalk.bold.red("─".repeat(80)));
+  console.log(
+    chalk.gray(
+      "  Showing sessions that were sent to the SAME device multiple times\n"
+    )
+  );
 
   const dupTable = new Table({
     head: [
+      chalk.white("Device Key"),
       chalk.white("Session ID"),
-      chalk.white("Stream ID"),
       chalk.white("Count"),
+      chalk.white("Stream"),
       chalk.white("Senders"),
       chalk.white("First Seen"),
       chalk.white("Last Seen"),
@@ -613,38 +687,55 @@ function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
     wordWrap: true,
   });
 
-  const sortedDuplicates = [...analysis.duplicateSessionIds.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, 15);
+  // Sort by occurrence count descending, limit to 20
+  const sortedDuplicates = [...analysis.deviceSessionDuplicates]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
 
-  for (const [sessionId, sessions] of sortedDuplicates) {
-    const senders = new Set(sessions.map((s) => s.creatorUserId));
-    const streams = [...new Set(sessions.map((s) => s.streamId))];
-    const timestamps = sessions.map((s) => s.timestamp).sort();
-
+  for (const dup of sortedDuplicates) {
     dupTable.push([
-      sessionId,
-      streams.join("\n"),
-      chalk.red(sessions.length.toString()),
-      senders.size.toString(),
-      new Date(timestamps[0]).toISOString().substring(0, 19),
-      new Date(timestamps[timestamps.length - 1])
-        .toISOString()
-        .substring(0, 19),
+      dup.deviceKey.substring(0, 20) + "...",
+      dup.sessionId.substring(0, 20) + "...",
+      chalk.red(dup.count.toString()),
+      dup.streamId.substring(0, 20) + "...",
+      dup.senders.size === 1 ? "Same sender" : `${dup.senders.size} senders`,
+      formatDateTime(dup.firstSeen),
+      formatDateTime(dup.lastSeen),
     ]);
   }
 
   console.log(dupTable.toString());
 
-  if (analysis.duplicateSessionIds.size > 15) {
+  if (analysis.deviceSessionDuplicates.length > 20) {
     console.log(
       chalk.gray(
-        `  ... and ${
-          analysis.duplicateSessionIds.size - 15
-        } more duplicate session IDs`
+        `  ... and ${analysis.deviceSessionDuplicates.length - 20} more duplicates`
       )
     );
   }
+
+  // Summary by device
+  const deviceDupCounts = new Map<string, number>();
+  for (const dup of analysis.deviceSessionDuplicates) {
+    deviceDupCounts.set(
+      dup.deviceKey,
+      (deviceDupCounts.get(dup.deviceKey) || 0) + 1
+    );
+  }
+
+  console.log(chalk.gray(`\n  Summary:`));
+  console.log(
+    chalk.gray(
+      `    Total duplicate session instances: ${chalk.red(
+        analysis.deviceSessionDuplicates.length.toString()
+      )}`
+    )
+  );
+  console.log(
+    chalk.gray(
+      `    Devices affected: ${chalk.red(deviceDupCounts.size.toString())}`
+    )
+  );
 }
 
 function printAckAnalysis(analysis: InboxAnalysis): void {
