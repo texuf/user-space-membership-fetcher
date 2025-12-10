@@ -1,10 +1,13 @@
 import { utils } from "ethers";
 import { bin_toHexString } from "@towns-protocol/utils";
-import { enumToJson, fromJsonString, toBinary, toJsonString } from "@bufbuild/protobuf";
+import { enumToJson, fromBinary, fromJsonString, toBinary, toJsonString } from "@bufbuild/protobuf";
+import * as fs from "fs";
+import * as path from "path";
 import { snakeCase } from 'lodash-es'
 import {
   FullyReadMarkers,
   FullyReadMarkersSchema,
+  GetMiniblocksResponse,
   GetMiniblocksResponseSchema,
   MemberPayload,
   MembershipOpSchema,
@@ -397,4 +400,120 @@ export async function fetchMiniblocksFromRpc(
       nextFromInclusive: respondedFromInclusive + BigInt(response.miniblocks.length),
       snapshots: parsedSnapshots,
   }
+}
+
+// ============================================================================
+// Cached Miniblocks Fetching
+// ============================================================================
+
+const RIVER_CACHE_DIR = ".river";
+
+function ensureCacheDir(): void {
+  if (!fs.existsSync(RIVER_CACHE_DIR)) {
+    fs.mkdirSync(RIVER_CACHE_DIR, { recursive: true });
+  }
+}
+
+function getCacheFilePath(streamId: string, fromBlock: bigint, toBlock: bigint): string {
+  // Sanitize streamId for filename (remove 0x prefix if present)
+  const sanitizedStreamId = streamId.replace(/^0x/, "");
+  return path.join(RIVER_CACHE_DIR, `${sanitizedStreamId}_${fromBlock}_${toBlock}.bin`);
+}
+
+function loadCachedBatch(cacheFile: string): GetMiniblocksResponse | null {
+  if (!fs.existsSync(cacheFile)) {
+    return null;
+  }
+  try {
+    const data = fs.readFileSync(cacheFile);
+    return fromBinary(GetMiniblocksResponseSchema, data);
+  } catch (e) {
+    console.log(`Failed to load cache file ${cacheFile}:`, e);
+    return null;
+  }
+}
+
+function saveCacheBatch(cacheFile: string, response: GetMiniblocksResponse): void {
+  try {
+    const data = toBinary(GetMiniblocksResponseSchema, response);
+    fs.writeFileSync(cacheFile, data);
+  } catch (e) {
+    console.log(`Failed to save cache file ${cacheFile}:`, e);
+  }
+}
+
+export interface GetCachedMiniblocksOptions {
+  batchSize?: number;
+  onProgress?: (message: string) => void;
+}
+
+/**
+ * Fetches miniblocks with disk caching.
+ * Blocks are fetched from most recent to oldest and cached in .river folder.
+ *
+ * @param client - The StreamRpcClient to use for fetching
+ * @param streamId - The stream ID to fetch blocks for
+ * @param fromBlock - Starting block (inclusive)
+ * @param toBlock - Ending block (exclusive)
+ * @param options - Optional settings including batchSize (default 50) and progress callback
+ * @returns Array of GetMiniblocksResponse objects, ordered from oldest to newest
+ */
+export async function getCachedMiniblocks(
+  client: StreamRpcClient,
+  streamId: string,
+  fromBlock: bigint,
+  toBlock: bigint,
+  options: GetCachedMiniblocksOptions = {}
+): Promise<GetMiniblocksResponse[]> {
+  const { batchSize = 50, onProgress } = options;
+  const batchSizeBigInt = BigInt(batchSize);
+
+  ensureCacheDir();
+
+  const responses: GetMiniblocksResponse[] = [];
+  let currentTo = toBlock;
+  let reachedTerminus = false;
+
+  while (currentTo > fromBlock && !reachedTerminus) {
+    const currentFrom = currentTo - batchSizeBigInt < fromBlock
+      ? fromBlock
+      : currentTo - batchSizeBigInt;
+
+    const cacheFile = getCacheFilePath(streamId, currentFrom, currentTo);
+
+    // Try to load from cache first
+    const cachedResponse = loadCachedBatch(cacheFile);
+    let batchResponse: GetMiniblocksResponse;
+
+    if (cachedResponse) {
+      onProgress?.(`Cache hit: ${currentFrom} to ${currentTo}`);
+      batchResponse = cachedResponse;
+    } else {
+      onProgress?.(`Fetching batch: ${currentFrom} to ${currentTo}...`);
+
+      batchResponse = await client.getMiniblocks({
+        streamId: streamIdAsBytes(streamId),
+        fromInclusive: currentFrom,
+        toExclusive: currentTo,
+      });
+
+      const byteLength = toBinary(GetMiniblocksResponseSchema, batchResponse).byteLength;
+      const mb = byteLength / 1024 / 1024;
+      onProgress?.(`Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`);
+
+      // Save to cache
+      saveCacheBatch(cacheFile, batchResponse);
+    }
+
+    // Insert at beginning to maintain order (oldest first)
+    responses.unshift(batchResponse);
+    currentTo = currentFrom;
+
+    if (batchResponse.terminus) {
+      onProgress?.(`Terminus reached at ${currentTo}`);
+      reachedTerminus = true;
+    }
+  }
+
+  return responses;
 }

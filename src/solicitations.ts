@@ -10,11 +10,7 @@ import { LocalhostWeb3Provider, RiverRegistry } from "@towns-protocol/web3";
 import { env } from "./env";
 import Table from "cli-table3";
 import chalk from "chalk";
-import {
-  GetMiniblocksResponse,
-  GetMiniblocksResponseSchema,
-} from "@towns-protocol/proto";
-import { toBinary } from "@bufbuild/protobuf";
+import { getCachedMiniblocks } from "./utils/utils";
 
 // ============================================================================
 // Types
@@ -959,44 +955,16 @@ const run = async () => {
 
   console.log(chalk.gray(`Fetching blocks ${fromBlock} to ${miniblockNum}...`));
 
-  // Fetch blocks in batches of 50, starting from the latest and going backwards
-  const batchSize = 50n;
-  const responses: GetMiniblocksResponse[] = [];
-  let currentTo = miniblockNum;
-
-  while (currentTo > fromBlock) {
-    const currentFrom =
-      currentTo - batchSize < fromBlock ? fromBlock : currentTo - batchSize;
-
-    console.log(
-      chalk.gray(`Fetching batch: ${currentFrom} to ${currentTo}...`)
-    );
-
-    const batchBlocks = await riverRpcProvider.getMiniblocks({
-      streamId,
-      fromInclusive: currentFrom,
-      toExclusive: currentTo,
-    });
-
-    const byteLength = toBinary(
-      GetMiniblocksResponseSchema,
-      batchBlocks
-    ).byteLength;
-    const mb = byteLength / 1024 / 1024;
-    console.log(
-      chalk.gray(
-        `Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`
-      )
-    );
-
-    responses.unshift(batchBlocks);
-    currentTo = currentFrom;
-
-    if (batchBlocks.terminus) {
-      console.log(chalk.gray(`Terminus reached at ${currentTo}`));
-      break;
+  const responses = await getCachedMiniblocks(
+    riverRpcProvider,
+    streamIdParam,
+    fromBlock,
+    miniblockNum,
+    {
+      batchSize: 50,
+      onProgress: (msg) => console.log(chalk.gray(msg)),
     }
-  }
+  );
 
   const total = responses.reduce(
     (acc, response) => acc + response.miniblocks.length,
