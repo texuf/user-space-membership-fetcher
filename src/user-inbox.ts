@@ -903,13 +903,11 @@ const run = async () => {
   // Fetch blocks in batches of 50
   const batchSize = 50n;
   const responses: GetMiniblocksResponse[] = [];
-  let currentFrom = fromBlock;
+  let currentTo = miniblockNum;
 
-  while (currentFrom < miniblockNum) {
-    const currentTo =
-      currentFrom + batchSize > miniblockNum
-        ? miniblockNum
-        : currentFrom + batchSize;
+  while (currentTo > fromBlock) {
+    const currentFrom =
+      currentTo - batchSize < fromBlock ? fromBlock : currentTo - batchSize;
 
     console.log(
       chalk.gray(`Fetching batch: ${currentFrom} to ${currentTo}...`)
@@ -920,21 +918,23 @@ const run = async () => {
       fromInclusive: currentFrom,
       toExclusive: currentTo,
     });
-    // print size of the response
+
     const byteLength = toBinary(
       GetMiniblocksResponseSchema,
       batchBlocks
     ).byteLength;
-    // print size in mb
     const mb = byteLength / 1024 / 1024;
     console.log(
-      `Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`
+      chalk.gray(
+        `Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`
+      )
     );
 
-    responses.push(batchBlocks);
-    currentFrom = currentTo;
+    responses.unshift(batchBlocks);
+    currentTo = currentFrom;
 
     if (batchBlocks.terminus) {
+      console.log(chalk.gray(`Terminus reached at ${currentTo}`));
       break;
     }
   }
