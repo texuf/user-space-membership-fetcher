@@ -8,6 +8,7 @@ import {
   streamIdAsString,
   unpackMiniblock,
   getUserIdFromStreamId,
+  getMiniblocks,
 } from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
@@ -18,6 +19,11 @@ import {
 import { env } from "./env";
 import Table from "cli-table3";
 import chalk from "chalk";
+import {
+  GetMiniblocksResponse,
+  GetMiniblocksResponseSchema,
+} from "@towns-protocol/proto";
+import { toBinary } from "@bufbuild/protobuf";
 
 // ============================================================================
 // Types
@@ -904,27 +910,61 @@ const run = async () => {
 
   console.log(chalk.gray(`Fetching blocks ${fromBlock} to ${miniblockNum}...`));
 
-  const blocks = await riverRpcProvider.getMiniblocks({
-    streamId,
-    fromInclusive: fromBlock,
-    toExclusive: miniblockNum,
-  });
+  // Fetch blocks in batches of 50
+  const batchSize = 50n;
+  const responses: GetMiniblocksResponse[] = [];
+  let currentFrom = fromBlock;
 
-  console.log(
-    chalk.gray(`Processing ${blocks.miniblocks.length} miniblocks...`)
+  while (currentFrom < miniblockNum) {
+    const currentTo =
+      currentFrom + batchSize > miniblockNum
+        ? miniblockNum
+        : currentFrom + batchSize;
+
+    console.log(
+      chalk.gray(`Fetching batch: ${currentFrom} to ${currentTo}...`)
+    );
+
+    const batchBlocks = await riverRpcProvider.getMiniblocks({
+      streamId,
+      fromInclusive: currentFrom,
+      toExclusive: currentTo,
+    });
+    // print size of the response
+    const byteLength = toBinary(
+      GetMiniblocksResponseSchema,
+      batchBlocks
+    ).byteLength;
+    // print size in mb
+    const mb = byteLength / 1024 / 1024;
+    console.log(
+      `Batch ${currentFrom} to ${currentTo} size: ${mb.toFixed(2)} MB`
+    );
+
+    responses.push(batchBlocks);
+    currentFrom = currentTo;
+  }
+
+  const total = responses.reduce(
+    (acc, response) => acc + response.miniblocks.length,
+    0
   );
+
+  console.log(chalk.gray(`Processing ${total} miniblocks...`));
 
   // Analyze
   const analysis = createEmptyAnalysis();
 
-  for (const block of blocks.miniblocks) {
-    const unpacked = await unpackMiniblock(block, {
-      disableHashValidation: true,
-      disableSignatureValidation: true,
-    });
+  for (const response of responses) {
+    for (const block of response.miniblocks) {
+      const unpacked = await unpackMiniblock(block, {
+        disableHashValidation: true,
+        disableSignatureValidation: true,
+      });
 
-    for (const event of unpacked.events) {
-      processEvent(event, analysis, unpacked.header.miniblockNum);
+      for (const event of unpacked.events) {
+        processEvent(event, analysis, unpacked.header.miniblockNum);
+      }
     }
   }
 
