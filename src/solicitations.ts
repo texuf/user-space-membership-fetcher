@@ -816,7 +816,12 @@ function printTimeline(analysis: SolicitationAnalysis): void {
   });
 
   for (const event of allEvents.slice(-50)) {
-    const timeStr = new Date(event.timestamp).toISOString().substring(11, 23);
+    // Format: "Dec 10 14:32:05"
+    const date = new Date(event.timestamp);
+    const timeStr = date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }) + " " + date.toISOString().substring(11, 19);
     const typeStr =
       event.type === "solicitation"
         ? chalk.yellow("SOLICIT")
