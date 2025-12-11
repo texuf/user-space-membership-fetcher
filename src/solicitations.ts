@@ -1,894 +1,322 @@
 import {
   townsEnv,
   makeStreamRpcClient,
-  ParsedEvent,
   streamIdAsBytes,
-  unpackMiniblock,
+  StreamStateView,
+  unpackStream,
   userIdFromAddress,
 } from "@towns-protocol/sdk";
 import { LocalhostWeb3Provider, RiverRegistry } from "@towns-protocol/web3";
 import { env } from "./env";
 import Table from "cli-table3";
 import chalk from "chalk";
-import { getCachedMiniblocks } from "./utils/utils";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface SolicitationInfo {
+interface OutstandingSolicitation {
+  userId: string;
   deviceKey: string;
   fallbackKey: string;
   isNewDevice: boolean;
   sessionIds: string[];
-  timestamp: number;
-  creatorUserId: string;
-  miniblockNum: bigint;
-  eventHash: string;
 }
 
-interface FulfillmentInfo {
-  userAddress: string;
+interface SnapshotSolicitation {
+  userId: string;
   deviceKey: string;
+  fallbackKey: string;
+  isNewDevice: boolean;
   sessionIds: string[];
-  timestamp: number;
-  creatorUserId: string;
-  miniblockNum: bigint;
-  eventHash: string;
 }
 
-interface SolicitationAnalysis {
-  // Overview
-  totalSolicitations: number;
-  totalFulfillments: number;
-  timeRangeStart: number;
-  timeRangeEnd: number;
-
-  // Solicitations by device
-  solicitationsByDevice: Map<string, SolicitationInfo[]>;
-
-  // Fulfillments by target user
-  fulfillmentsByTargetUser: Map<string, FulfillmentInfo[]>;
-
-  // Fulfillments by responder
-  fulfillmentsByResponder: Map<string, FulfillmentInfo[]>;
-
-  // All events for timeline
-  solicitations: SolicitationInfo[];
-  fulfillments: FulfillmentInfo[];
-
-  // Session tracking
-  sessionIdToSolicitations: Map<string, SolicitationInfo[]>;
-  sessionIdToFulfillments: Map<string, FulfillmentInfo[]>;
-
-  // For matching solicitations to fulfillments
-  deviceKeyToSolicitations: Map<string, SolicitationInfo[]>;
-  deviceKeyToFulfillments: Map<string, FulfillmentInfo[]>;
-
-  // Anomalies
-  anomalies: Anomaly[];
+interface UserSummary {
+  userId: string;
+  deviceCount: number;
+  totalSessions: number;
+  newDevices: number;
 }
 
-interface Anomaly {
-  type:
-    | "duplicate_solicitation"
-    | "duplicate_fulfillment"
-    | "unfulfilled_solicitation"
-    | "fulfillment_without_solicitation"
-    | "multiple_fulfillments"
-    | "session_mismatch";
-  severity: "low" | "medium" | "high";
-  description: string;
-  details: Record<string, unknown>;
-}
-
-// ============================================================================
-// Analysis Functions
-// ============================================================================
-
-function createEmptyAnalysis(): SolicitationAnalysis {
-  return {
-    totalSolicitations: 0,
-    totalFulfillments: 0,
-    timeRangeStart: Infinity,
-    timeRangeEnd: 0,
-    solicitationsByDevice: new Map(),
-    fulfillmentsByTargetUser: new Map(),
-    fulfillmentsByResponder: new Map(),
-    solicitations: [],
-    fulfillments: [],
-    sessionIdToSolicitations: new Map(),
-    sessionIdToFulfillments: new Map(),
-    deviceKeyToSolicitations: new Map(),
-    deviceKeyToFulfillments: new Map(),
-    anomalies: [],
-  };
-}
-
-// Track all seen content cases for debugging
-const seenContentCases = new Map<string, number>();
-
-function processEvent(
-  event: ParsedEvent,
-  analysis: SolicitationAnalysis,
-  miniblockNum: bigint,
-  filterUserAddress?: string
-): void {
-  const payload = event.event.payload;
-  if (payload?.case !== "memberPayload") {
-    return;
-  }
-
-  const content = payload.value.content;
-
-  // Debug: track all content cases we see
-  const caseType = content?.case || "undefined";
-  seenContentCases.set(caseType, (seenContentCases.get(caseType) || 0) + 1);
-
-  const timestamp = Number(event.event.createdAtEpochMs);
-
-  if (content?.case === "keySolicitation") {
-    // Filter: only include solicitations FROM the filtered user
-    if (filterUserAddress && event.creatorUserId.toLowerCase() !== filterUserAddress) {
-      return;
-    }
-    analysis.timeRangeStart = Math.min(analysis.timeRangeStart, timestamp);
-    analysis.timeRangeEnd = Math.max(analysis.timeRangeEnd, timestamp);
-    processSolicitation(
-      event,
-      content.value,
-      analysis,
-      timestamp,
-      miniblockNum
-    );
-  } else if (content?.case === "keyFulfillment") {
-    // Filter: only include fulfillments TO the filtered user
-    const targetUserAddress = userIdFromAddress(content.value.userAddress);
-    if (filterUserAddress && targetUserAddress.toLowerCase() !== filterUserAddress) {
-      return;
-    }
-    analysis.timeRangeStart = Math.min(analysis.timeRangeStart, timestamp);
-    analysis.timeRangeEnd = Math.max(analysis.timeRangeEnd, timestamp);
-    processFulfillment(event, content.value, analysis, timestamp, miniblockNum);
-  }
-}
-
-function printDebugContentCases(): void {
-  console.log(chalk.bold.gray("\n  DEBUG: Content cases seen in memberPayload:"));
-  for (const [caseType, count] of seenContentCases) {
-    console.log(chalk.gray(`    ${caseType}: ${count}`));
-  }
-}
-
-function processSolicitation(
-  event: ParsedEvent,
-  solicitation: {
-    deviceKey: string;
-    fallbackKey: string;
-    isNewDevice: boolean;
-    sessionIds: string[];
-  },
-  analysis: SolicitationAnalysis,
-  timestamp: number,
-  miniblockNum: bigint
-): void {
-  analysis.totalSolicitations++;
-
-  const info: SolicitationInfo = {
-    deviceKey: solicitation.deviceKey,
-    fallbackKey: solicitation.fallbackKey,
-    isNewDevice: solicitation.isNewDevice,
-    sessionIds: solicitation.sessionIds,
-    timestamp,
-    creatorUserId: event.creatorUserId,
-    miniblockNum,
-    eventHash: event.hashStr,
-  };
-
-  analysis.solicitations.push(info);
-
-  // Track by device key
-  if (!analysis.solicitationsByDevice.has(solicitation.deviceKey)) {
-    analysis.solicitationsByDevice.set(solicitation.deviceKey, []);
-  }
-  analysis.solicitationsByDevice.get(solicitation.deviceKey)!.push(info);
-
-  // Track by device key for matching
-  if (!analysis.deviceKeyToSolicitations.has(solicitation.deviceKey)) {
-    analysis.deviceKeyToSolicitations.set(solicitation.deviceKey, []);
-  }
-  analysis.deviceKeyToSolicitations.get(solicitation.deviceKey)!.push(info);
-
-  // Track session IDs
-  for (const sessionId of solicitation.sessionIds) {
-    if (!analysis.sessionIdToSolicitations.has(sessionId)) {
-      analysis.sessionIdToSolicitations.set(sessionId, []);
-    }
-    analysis.sessionIdToSolicitations.get(sessionId)!.push(info);
-  }
-}
-
-function processFulfillment(
-  event: ParsedEvent,
-  fulfillment: {
-    userAddress: Uint8Array;
-    deviceKey: string;
-    sessionIds: string[];
-  },
-  analysis: SolicitationAnalysis,
-  timestamp: number,
-  miniblockNum: bigint
-): void {
-  const targetUserAddress = userIdFromAddress(fulfillment.userAddress);
-
-  analysis.totalFulfillments++;
-
-  const info: FulfillmentInfo = {
-    userAddress: targetUserAddress,
-    deviceKey: fulfillment.deviceKey,
-    sessionIds: fulfillment.sessionIds,
-    timestamp,
-    creatorUserId: event.creatorUserId,
-    miniblockNum,
-    eventHash: event.hashStr,
-  };
-
-  analysis.fulfillments.push(info);
-
-  // Track by target user
-  if (!analysis.fulfillmentsByTargetUser.has(targetUserAddress)) {
-    analysis.fulfillmentsByTargetUser.set(targetUserAddress, []);
-  }
-  analysis.fulfillmentsByTargetUser.get(targetUserAddress)!.push(info);
-
-  // Track by responder
-  if (!analysis.fulfillmentsByResponder.has(event.creatorUserId)) {
-    analysis.fulfillmentsByResponder.set(event.creatorUserId, []);
-  }
-  analysis.fulfillmentsByResponder.get(event.creatorUserId)!.push(info);
-
-  // Track by device key for matching
-  if (!analysis.deviceKeyToFulfillments.has(fulfillment.deviceKey)) {
-    analysis.deviceKeyToFulfillments.set(fulfillment.deviceKey, []);
-  }
-  analysis.deviceKeyToFulfillments.get(fulfillment.deviceKey)!.push(info);
-
-  // Track session IDs
-  for (const sessionId of fulfillment.sessionIds) {
-    if (!analysis.sessionIdToFulfillments.has(sessionId)) {
-      analysis.sessionIdToFulfillments.set(sessionId, []);
-    }
-    analysis.sessionIdToFulfillments.get(sessionId)!.push(info);
-  }
-}
-
-function detectAnomalies(analysis: SolicitationAnalysis): void {
-  // 1. Detect duplicate solicitations from same device
-  for (const [deviceKey, solicitations] of analysis.solicitationsByDevice) {
-    if (solicitations.length > 1) {
-      // Check for solicitations within short time window (potential duplicates)
-      const sorted = [...solicitations].sort(
-        (a, b) => a.timestamp - b.timestamp
-      );
-      for (let i = 1; i < sorted.length; i++) {
-        const timeDiff = sorted[i].timestamp - sorted[i - 1].timestamp;
-        if (timeDiff < 60000) {
-          // Less than 1 minute apart
-          analysis.anomalies.push({
-            type: "duplicate_solicitation",
-            severity: "medium",
-            description: `Device ${deviceKey} sent ${
-              solicitations.length
-            } solicitations, ${i + 1} within ${Math.round(timeDiff / 1000)}s`,
-            details: {
-              deviceKey,
-              count: solicitations.length,
-              timeDiffMs: timeDiff,
-              timestamps: sorted.map((s) =>
-                new Date(s.timestamp).toISOString()
-              ),
-            },
-          });
-          break;
-        }
-      }
-    }
-  }
-
-  // 2. Detect multiple fulfillments for same device key (potential issue)
-  for (const [deviceKey, fulfillments] of analysis.deviceKeyToFulfillments) {
-    if (fulfillments.length > 1) {
-      const responders = new Set(fulfillments.map((f) => f.creatorUserId));
-      analysis.anomalies.push({
-        type: "multiple_fulfillments",
-        severity: responders.size > 1 ? "high" : "medium",
-        description: `Device ${deviceKey} received ${fulfillments.length} fulfillments from ${responders.size} responder(s)`,
-        details: {
-          deviceKey,
-          count: fulfillments.length,
-          responders: Array.from(responders),
-          sessionIds: fulfillments.flatMap((f) => f.sessionIds),
-        },
-      });
-    }
-  }
-
-  // 3. Detect session IDs that appear in multiple fulfillments
-  for (const [sessionId, fulfillments] of analysis.sessionIdToFulfillments) {
-    if (fulfillments.length > 1) {
-      analysis.anomalies.push({
-        type: "duplicate_fulfillment",
-        severity: "high",
-        description: `Session ${sessionId} fulfilled ${fulfillments.length} times`,
-        details: {
-          sessionId,
-          count: fulfillments.length,
-          responders: fulfillments.map((f) => f.creatorUserId),
-          timestamps: fulfillments.map((f) =>
-            new Date(f.timestamp).toISOString()
-          ),
-        },
-      });
-    }
-  }
-
-  // 4. Detect solicitations without matching fulfillments
-  for (const [deviceKey, solicitations] of analysis.deviceKeyToSolicitations) {
-    const fulfillments = analysis.deviceKeyToFulfillments.get(deviceKey) || [];
-    if (fulfillments.length === 0 && solicitations.length > 0) {
-      const latestSolicitation = solicitations[solicitations.length - 1];
-      const timeSince = analysis.timeRangeEnd - latestSolicitation.timestamp;
-      if (timeSince > 300000) {
-        // More than 5 minutes old
-        analysis.anomalies.push({
-          type: "unfulfilled_solicitation",
-          severity: "low",
-          description: `Device ${deviceKey} has ${solicitations.length} solicitation(s) with no fulfillment`,
-          details: {
-            deviceKey,
-            solicitationCount: solicitations.length,
-            timeSinceLastMs: timeSince,
-            isNewDevice: latestSolicitation.isNewDevice,
-          },
-        });
-      }
-    }
-  }
+interface VerificationResult {
+  matched: boolean;
+  viewCount: number;
+  computedCount: number;
+  discrepancies: string[];
 }
 
 // ============================================================================
 // Display Functions
 // ============================================================================
 
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+function printOverviewSummary(
+  solicitations: OutstandingSolicitation[],
+  snapshotMiniblockNum: bigint,
+  poolEventCount: number,
+  solicitationEventsCount: number,
+  fulfillmentEventsCount: number
+): void {
+  console.log(chalk.bold.cyan("\n" + "═".repeat(80)));
+  console.log(chalk.bold.cyan("  SOLICITATIONS OVERVIEW"));
+  console.log(chalk.bold.cyan("═".repeat(80)));
 
-  if (days > 0) return `${days}d ${hours % 24}h`;
-  if (hours > 0) return `${hours}h ${minutes % 60}m`;
-  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-  return `${seconds}s`;
-}
-
-function printOverview(analysis: SolicitationAnalysis, streamId: string): void {
-  console.log(chalk.bold.cyan("\n" + "═".repeat(100)));
-  console.log(chalk.bold.cyan("  KEY SOLICITATION & FULFILLMENT ANALYSIS"));
-  console.log(chalk.bold.cyan("═".repeat(100)));
-
-  const hasEvents =
-    analysis.timeRangeStart !== Infinity && analysis.timeRangeEnd !== 0;
-  const duration = hasEvents
-    ? analysis.timeRangeEnd - analysis.timeRangeStart
-    : 0;
-
-  const overviewTable = new Table({
-    chars: { mid: "", "left-mid": "", "mid-mid": "", "right-mid": "" },
-  });
-
-  overviewTable.push(
-    [chalk.gray("Stream ID"), streamId],
-    [
-      chalk.gray("Time Range"),
-      hasEvents
-        ? `${new Date(analysis.timeRangeStart).toISOString()} → ${new Date(
-            analysis.timeRangeEnd
-          ).toISOString()}`
-        : chalk.gray("No events found"),
-    ],
-    [chalk.gray("Duration"), hasEvents ? formatDuration(duration) : "-"],
-    [
-      chalk.gray("Total Solicitations"),
-      chalk.yellow(analysis.totalSolicitations.toString()),
-    ],
-    [
-      chalk.gray("Total Fulfillments"),
-      chalk.green(analysis.totalFulfillments.toString()),
-    ],
-    [
-      chalk.gray("Unique Soliciting Devices"),
-      chalk.magenta(analysis.solicitationsByDevice.size.toString()),
-    ],
-    [
-      chalk.gray("Unique Soliciting Users"),
-      chalk.magenta(
-        new Set(analysis.solicitations.map((s) => s.creatorUserId)).size.toString()
-      ),
-    ],
-    [
-      chalk.gray("Unique Responders"),
-      chalk.cyan(analysis.fulfillmentsByResponder.size.toString()),
-    ],
-    [
-      chalk.gray("Unique Target Users"),
-      chalk.blue(analysis.fulfillmentsByTargetUser.size.toString()),
-    ],
-    [
-      chalk.gray("Anomalies Detected"),
-      analysis.anomalies.length > 0
-        ? chalk.red(analysis.anomalies.length.toString())
-        : chalk.green("0"),
-    ]
-  );
-
-  console.log(overviewTable.toString());
-}
-
-function printSolicitationsByDevice(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.yellow("\n" + "─".repeat(100)));
-  console.log(chalk.bold.yellow("  SOLICITATIONS BY DEVICE"));
-  console.log(chalk.bold.yellow("─".repeat(100)));
-
-  if (analysis.solicitationsByDevice.size === 0) {
-    console.log(chalk.gray("  No solicitations found"));
-    return;
+  // Build user summaries
+  const userSummaries = new Map<string, UserSummary>();
+  for (const sol of solicitations) {
+    const existing = userSummaries.get(sol.userId);
+    if (existing) {
+      existing.deviceCount++;
+      existing.totalSessions += sol.sessionIds.length;
+      if (sol.isNewDevice) existing.newDevices++;
+    } else {
+      userSummaries.set(sol.userId, {
+        userId: sol.userId,
+        deviceCount: 1,
+        totalSessions: sol.sessionIds.length,
+        newDevices: sol.isNewDevice ? 1 : 0,
+      });
+    }
   }
 
-  const deviceTable = new Table({
+  const uniqueUsers = userSummaries.size;
+  const totalDevices = solicitations.length;
+  const newDeviceCount = solicitations.filter((s) => s.isNewDevice).length;
+  const totalSessions = solicitations.reduce(
+    (acc, s) => acc + s.sessionIds.length,
+    0
+  );
+
+  // Count unique session IDs across all solicitations
+  const allSessionIds = new Set<string>();
+  for (const sol of solicitations) {
+    for (const sessionId of sol.sessionIds) {
+      allSessionIds.add(sessionId);
+    }
+  }
+  const uniqueSessions = allSessionIds.size;
+
+  const infoTable = new Table({ wordWrap: true });
+  infoTable.push(
+    { "Snapshot Miniblock": snapshotMiniblockNum.toString() },
+    { "Events in Pool": poolEventCount.toString() },
+    { "  - Key Solicitations": solicitationEventsCount.toString() },
+    { "  - Key Fulfillments": fulfillmentEventsCount.toString() },
+    { "": "" },
+    { "Outstanding Solicitations": totalDevices.toString() },
+    { "Unique Users": uniqueUsers.toString() },
+    { "New Devices": newDeviceCount.toString() },
+    { "": "" },
+    { "Total Session Requests": totalSessions.toString() },
+    { "Unique Sessions": uniqueSessions.toString() },
+    {
+      "Avg Requests per Session": (totalSessions / uniqueSessions).toFixed(1),
+    }
+  );
+  console.log(infoTable.toString());
+
+  // Top users by session count
+  console.log(chalk.bold.yellow("\n  TOP 10 USERS BY SESSION REQUESTS"));
+  const sortedUsers = [...userSummaries.values()]
+    .sort((a, b) => b.totalSessions - a.totalSessions)
+    .slice(0, 10);
+
+  const topTable = new Table({
     head: [
-      chalk.white("Device Key"),
-      chalk.white("Creator"),
-      chalk.white("Count"),
-      chalk.white("New Device"),
-      chalk.white("Session IDs"),
-      chalk.white("First"),
-      chalk.white("Last"),
+      chalk.white("User"),
+      chalk.white("Devices"),
+      chalk.white("Sessions"),
+      chalk.white("New Devices"),
     ],
     wordWrap: true,
   });
 
-  const sortedDevices = [...analysis.solicitationsByDevice.entries()].sort(
-    (a, b) => b[1].length - a[1].length
+  for (const user of sortedUsers) {
+    topTable.push([
+      user.userId,
+      user.deviceCount.toString(),
+      user.totalSessions.toString(),
+      user.newDevices > 0 ? chalk.yellow(user.newDevices.toString()) : "0",
+    ]);
+  }
+  console.log(topTable.toString());
+
+  if (uniqueUsers > 10) {
+    console.log(chalk.gray(`  ... and ${uniqueUsers - 10} more users`));
+  }
+
+  console.log(
+    chalk.gray(
+      `\n  Use: yarn solicitations <streamId> <userAddress> to see details for a specific user`
+    )
+  );
+}
+
+function printUserDetails(
+  solicitations: OutstandingSolicitation[],
+  filterUserId: string
+): void {
+  const userSolicitations = solicitations.filter(
+    (s) => s.userId.toLowerCase() === filterUserId.toLowerCase()
   );
 
-  for (const [deviceKey, solicitations] of sortedDevices.slice(0, 20)) {
-    const sorted = [...solicitations].sort((a, b) => a.timestamp - b.timestamp);
-    const allSessionIds = new Set(solicitations.flatMap((s) => s.sessionIds));
-    const creators = new Set(solicitations.map((s) => s.creatorUserId));
-    const hasNewDevice = solicitations.some((s) => s.isNewDevice);
+  console.log(chalk.bold.cyan("\n" + "═".repeat(80)));
+  console.log(chalk.bold.cyan(`  SOLICITATIONS FOR USER: ${filterUserId}`));
+  console.log(chalk.bold.cyan("═".repeat(80)));
 
+  if (userSolicitations.length === 0) {
+    console.log(chalk.yellow("  No outstanding solicitations for this user"));
+    return;
+  }
+
+  // Summary
+  const totalSessions = userSolicitations.reduce(
+    (acc, s) => acc + s.sessionIds.length,
+    0
+  );
+  const newDevices = userSolicitations.filter((s) => s.isNewDevice).length;
+
+  console.log(chalk.gray(`  Devices: ${userSolicitations.length}`));
+  console.log(chalk.gray(`  New Devices: ${newDevices}`));
+  console.log(chalk.gray(`  Total Session Requests: ${totalSessions}`));
+
+  // Device table
+  console.log(chalk.bold.yellow("\n  DEVICES"));
+
+  const deviceTable = new Table({
+    head: [
+      chalk.white("Device Key"),
+      chalk.white("Fallback Key"),
+      chalk.white("New"),
+      chalk.white("Sessions"),
+    ],
+    wordWrap: true,
+  });
+
+  for (const sol of userSolicitations) {
     deviceTable.push([
-      deviceKey,
-      [...creators].join("\n"),
-      solicitations.length.toString(),
-      hasNewDevice ? chalk.yellow("Yes") : "No",
-      allSessionIds.size > 0
-        ? `${allSessionIds.size} unique`
-        : chalk.gray("(new device)"),
-      new Date(sorted[0].timestamp).toISOString().substring(0, 19),
-      new Date(sorted[sorted.length - 1].timestamp)
-        .toISOString()
-        .substring(0, 19),
+      sol.deviceKey,
+      sol.fallbackKey,
+      sol.isNewDevice ? chalk.yellow("Yes") : "No",
+      sol.sessionIds.length.toString(),
     ]);
   }
 
   console.log(deviceTable.toString());
 
-  if (sortedDevices.length > 20) {
-    console.log(
-      chalk.gray(`  ... and ${sortedDevices.length - 20} more devices`)
-    );
-  }
-}
-
-function printFulfillmentsByResponder(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.green("\n" + "─".repeat(100)));
-  console.log(chalk.bold.green("  FULFILLMENTS BY RESPONDER"));
-  console.log(chalk.bold.green("─".repeat(100)));
-
-  if (analysis.fulfillmentsByResponder.size === 0) {
-    console.log(chalk.gray("  No fulfillments found"));
-    return;
-  }
-
-  const responderTable = new Table({
-    head: [
-      chalk.white("Responder"),
-      chalk.white("Fulfillments"),
-      chalk.white("Unique Devices"),
-      chalk.white("Unique Targets"),
-      chalk.white("Total Sessions"),
-      chalk.white("First"),
-      chalk.white("Last"),
-    ],
-    wordWrap: true,
-  });
-
-  const sortedResponders = [...analysis.fulfillmentsByResponder.entries()].sort(
-    (a, b) => b[1].length - a[1].length
+  // Show sample session IDs (first 5 from first device with sessions)
+  const deviceWithSessions = userSolicitations.find(
+    (s) => s.sessionIds.length > 0
   );
-
-  for (const [responder, fulfillments] of sortedResponders.slice(0, 15)) {
-    const sorted = [...fulfillments].sort((a, b) => a.timestamp - b.timestamp);
-    const uniqueDevices = new Set(fulfillments.map((f) => f.deviceKey));
-    const uniqueTargets = new Set(fulfillments.map((f) => f.userAddress));
-    const totalSessions = fulfillments.reduce(
-      (sum, f) => sum + f.sessionIds.length,
-      0
-    );
-
-    responderTable.push([
-      responder,
-      fulfillments.length.toString(),
-      uniqueDevices.size.toString(),
-      uniqueTargets.size.toString(),
-      totalSessions.toString(),
-      new Date(sorted[0].timestamp).toISOString().substring(0, 19),
-      new Date(sorted[sorted.length - 1].timestamp)
-        .toISOString()
-        .substring(0, 19),
-    ]);
-  }
-
-  console.log(responderTable.toString());
-
-  if (sortedResponders.length > 15) {
-    console.log(
-      chalk.gray(`  ... and ${sortedResponders.length - 15} more responders`)
-    );
-  }
-}
-
-function printFulfillmentsByTargetUser(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.blue("\n" + "─".repeat(100)));
-  console.log(chalk.bold.blue("  FULFILLMENTS BY TARGET USER"));
-  console.log(chalk.bold.blue("─".repeat(100)));
-
-  if (analysis.fulfillmentsByTargetUser.size === 0) {
-    console.log(chalk.gray("  No fulfillments found"));
-    return;
-  }
-
-  const targetTable = new Table({
-    head: [
-      chalk.white("Target User"),
-      chalk.white("Fulfillments"),
-      chalk.white("Unique Responders"),
-      chalk.white("Unique Devices"),
-      chalk.white("Total Sessions"),
-    ],
-    wordWrap: true,
-  });
-
-  const sortedTargets = [...analysis.fulfillmentsByTargetUser.entries()].sort(
-    (a, b) => b[1].length - a[1].length
-  );
-
-  for (const [target, fulfillments] of sortedTargets.slice(0, 15)) {
-    const uniqueResponders = new Set(fulfillments.map((f) => f.creatorUserId));
-    const uniqueDevices = new Set(fulfillments.map((f) => f.deviceKey));
-    const totalSessions = fulfillments.reduce(
-      (sum, f) => sum + f.sessionIds.length,
-      0
-    );
-
-    targetTable.push([
-      target,
-      fulfillments.length.toString(),
-      uniqueResponders.size.toString(),
-      uniqueDevices.size.toString(),
-      totalSessions.toString(),
-    ]);
-  }
-
-  console.log(targetTable.toString());
-
-  if (sortedTargets.length > 15) {
-    console.log(
-      chalk.gray(`  ... and ${sortedTargets.length - 15} more target users`)
-    );
-  }
-}
-
-function printDeviceKeyMatching(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.magenta("\n" + "─".repeat(100)));
-  console.log(
-    chalk.bold.magenta("  SOLICITATION → FULFILLMENT MATCHING BY DEVICE KEY")
-  );
-  console.log(chalk.bold.magenta("─".repeat(100)));
-
-  const matchTable = new Table({
-    head: [
-      chalk.white("Device Key"),
-      chalk.white("Solicitations"),
-      chalk.white("Fulfillments"),
-      chalk.white("Responders"),
-      chalk.white("Status"),
-    ],
-    wordWrap: true,
-  });
-
-  // Combine all device keys from both maps
-  const allDeviceKeys = new Set([
-    ...analysis.deviceKeyToSolicitations.keys(),
-    ...analysis.deviceKeyToFulfillments.keys(),
-  ]);
-
-  const entries: Array<{
-    deviceKey: string;
-    solicitations: SolicitationInfo[];
-    fulfillments: FulfillmentInfo[];
-  }> = [];
-
-  for (const deviceKey of allDeviceKeys) {
-    entries.push({
-      deviceKey,
-      solicitations: analysis.deviceKeyToSolicitations.get(deviceKey) || [],
-      fulfillments: analysis.deviceKeyToFulfillments.get(deviceKey) || [],
-    });
-  }
-
-  // Sort by most fulfillments first
-  entries.sort((a, b) => b.fulfillments.length - a.fulfillments.length);
-
-  for (const entry of entries.slice(0, 25)) {
-    const responders = new Set(entry.fulfillments.map((f) => f.creatorUserId));
-
-    let status: string;
-    if (entry.solicitations.length === 0 && entry.fulfillments.length > 0) {
-      status = chalk.yellow("Fulfillment only");
-    } else if (
-      entry.solicitations.length > 0 &&
-      entry.fulfillments.length === 0
-    ) {
-      status = chalk.red("Unfulfilled");
-    } else if (entry.fulfillments.length === 1) {
-      status = chalk.green("OK");
-    } else if (entry.fulfillments.length > 1) {
-      status = chalk.red(`${entry.fulfillments.length} fulfillments!`);
-    } else {
-      status = chalk.gray("Unknown");
+  if (deviceWithSessions && deviceWithSessions.sessionIds.length > 0) {
+    console.log(chalk.gray("\n  Sample Session IDs (first 5):"));
+    for (const sessionId of deviceWithSessions.sessionIds.slice(0, 5)) {
+      console.log(chalk.gray(`    - ${sessionId}`));
     }
-
-    matchTable.push([
-      entry.deviceKey,
-      entry.solicitations.length.toString(),
-      entry.fulfillments.length.toString(),
-      responders.size > 0 ? [...responders].join("\n") : "-",
-      status,
-    ]);
+    if (deviceWithSessions.sessionIds.length > 5) {
+      console.log(
+        chalk.gray(`    ... and ${deviceWithSessions.sessionIds.length - 5} more`)
+      );
+    }
   }
+}
 
-  console.log(matchTable.toString());
+function printSnapshotSolicitations(
+  solicitations: SnapshotSolicitation[],
+  snapshotMiniblockNum: bigint,
+  filterUserId?: string
+): void {
+  const filtered = filterUserId
+    ? solicitations.filter(
+        (s) => s.userId.toLowerCase() === filterUserId.toLowerCase()
+      )
+    : solicitations;
 
-  if (entries.length > 25) {
-    console.log(
-      chalk.gray(`  ... and ${entries.length - 25} more device keys`)
-    );
-  }
-
-  // Summary stats
-  const fulfilled = entries.filter(
-    (e) => e.solicitations.length > 0 && e.fulfillments.length > 0
-  ).length;
-  const unfulfilled = entries.filter(
-    (e) => e.solicitations.length > 0 && e.fulfillments.length === 0
-  ).length;
-  const multipleFulfillments = entries.filter(
-    (e) => e.fulfillments.length > 1
-  ).length;
-
+  console.log(chalk.bold.yellow("\n" + "─".repeat(80)));
   console.log(
-    chalk.gray(
-      `\n  Summary: ${chalk.green(fulfilled.toString())} fulfilled, ${chalk.red(
-        unfulfilled.toString()
-      )} unfulfilled, ${chalk.yellow(
-        multipleFulfillments.toString()
-      )} with multiple fulfillments`
+    chalk.bold.yellow(
+      `  SNAPSHOT SOLICITATIONS (miniblock ${snapshotMiniblockNum})${
+        filterUserId ? ` for ${filterUserId}` : ""
+      }`
     )
   );
+  console.log(chalk.bold.yellow("─".repeat(80)));
+
+  if (filtered.length === 0) {
+    console.log(chalk.gray("  No solicitations in snapshot"));
+    return;
+  }
+
+  if (filterUserId) {
+    // Show full details for filtered user
+    for (const sol of filtered) {
+      console.log(chalk.bold.white(`\n  Device Key: ${sol.deviceKey}`));
+      console.log(
+        chalk.gray(
+          `    Is New Device: ${sol.isNewDevice ? chalk.yellow("Yes") : "No"}`
+        )
+      );
+      console.log(chalk.gray(`    Sessions: ${sol.sessionIds.length}`));
+    }
+  } else {
+    // Show summary
+    console.log(chalk.gray(`  Total: ${filtered.length} solicitations`));
+  }
 }
 
-function printSessionIdAnalysis(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.cyan("\n" + "─".repeat(100)));
-  console.log(chalk.bold.cyan("  SESSION ID ANALYSIS"));
-  console.log(chalk.bold.cyan("─".repeat(100)));
+function printPoolEvents(
+  solicitationEventsCount: number,
+  fulfillmentEventsCount: number,
+  filterUserId?: string,
+  userSolicitationEvents?: number,
+  userFulfillmentEvents?: number
+): void {
+  console.log(chalk.bold.magenta("\n" + "─".repeat(80)));
+  console.log(chalk.bold.magenta("  EVENTS IN POOL (after snapshot)"));
+  console.log(chalk.bold.magenta("─".repeat(80)));
 
-  // Find sessions that appear in multiple fulfillments (duplicates)
-  const duplicateSessions = [
-    ...analysis.sessionIdToFulfillments.entries(),
-  ].filter(([, fulfillments]) => fulfillments.length > 1);
+  console.log(chalk.gray(`  Total Key Solicitations: ${solicitationEventsCount}`));
+  console.log(chalk.gray(`  Total Key Fulfillments: ${fulfillmentEventsCount}`));
 
-  if (duplicateSessions.length === 0) {
-    console.log(chalk.green("  ✓ No duplicate session fulfillments detected"));
+  if (filterUserId && userSolicitationEvents !== undefined) {
+    console.log(chalk.gray(`\n  For ${filterUserId}:`));
+    console.log(chalk.gray(`    Solicitations: ${userSolicitationEvents}`));
+    console.log(chalk.gray(`    Fulfillments (targeting user): ${userFulfillmentEvents}`));
+  }
+}
+
+function printVerification(result: VerificationResult): void {
+  console.log(chalk.bold.blue("\n" + "─".repeat(80)));
+  console.log(chalk.bold.blue("  VERIFICATION: snapshot + events = view"));
+  console.log(chalk.bold.blue("─".repeat(80)));
+
+  if (result.matched) {
+    console.log(
+      chalk.green("  ✓ VERIFIED: Computed state matches StreamStateView")
+    );
+    console.log(
+      chalk.gray(
+        `    View count: ${result.viewCount} | Computed: ${result.computedCount}`
+      )
+    );
   } else {
     console.log(
-      chalk.red(
-        `  ⚠ Found ${duplicateSessions.length} session(s) with multiple fulfillments:`
-      )
+      chalk.red("  ✗ MISMATCH: Computed state differs from StreamStateView")
     );
-
-    const dupTable = new Table({
-      head: [
-        chalk.white("Session ID"),
-        chalk.white("Fulfillment Count"),
-        chalk.white("Responders"),
-        chalk.white("Timestamps"),
-      ],
-      wordWrap: true,
-    });
-
-    for (const [sessionId, fulfillments] of duplicateSessions.slice(0, 15)) {
-      const responders = fulfillments.map((f) => f.creatorUserId);
-
-      dupTable.push([
-        sessionId,
-        chalk.red(fulfillments.length.toString()),
-        responders.join("\n"),
-        fulfillments
-          .map((f) => new Date(f.timestamp).toISOString().substring(0, 19))
-          .join("\n"),
-      ]);
-    }
-
-    console.log(dupTable.toString());
-  }
-
-  // Show overall session stats
-  console.log(chalk.gray("\n  Session Statistics:"));
-  console.log(
-    chalk.gray(
-      `    Unique sessions in solicitations: ${analysis.sessionIdToSolicitations.size}`
-    )
-  );
-  console.log(
-    chalk.gray(
-      `    Unique sessions in fulfillments: ${analysis.sessionIdToFulfillments.size}`
-    )
-  );
-}
-
-function printTimeline(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.white("\n" + "─".repeat(100)));
-  console.log(chalk.bold.white("  TIMELINE (Last 50 Events)"));
-  console.log(chalk.bold.white("─".repeat(100)));
-
-  // Combine and sort all events
-  const allEvents: Array<{
-    type: "solicitation" | "fulfillment";
-    timestamp: number;
-    deviceKey: string;
-    creator: string;
-    sessionCount: number;
-    isNewDevice?: boolean;
-    targetUser?: string;
-  }> = [];
-
-  for (const s of analysis.solicitations) {
-    allEvents.push({
-      type: "solicitation",
-      timestamp: s.timestamp,
-      deviceKey: s.deviceKey,
-      creator: s.creatorUserId,
-      sessionCount: s.sessionIds.length,
-      isNewDevice: s.isNewDevice,
-    });
-  }
-
-  for (const f of analysis.fulfillments) {
-    allEvents.push({
-      type: "fulfillment",
-      timestamp: f.timestamp,
-      deviceKey: f.deviceKey,
-      creator: f.creatorUserId,
-      sessionCount: f.sessionIds.length,
-      targetUser: f.userAddress,
-    });
-  }
-
-  allEvents.sort((a, b) => a.timestamp - b.timestamp);
-
-  const timelineTable = new Table({
-    head: [
-      chalk.white("Time"),
-      chalk.white("Type"),
-      chalk.white("Device Key"),
-      chalk.white("Creator"),
-      chalk.white("Sessions"),
-      chalk.white("Details"),
-    ],
-    wordWrap: true,
-  });
-
-  for (const event of allEvents.slice(-50)) {
-    // Format: "Dec 10 14:32:05"
-    const date = new Date(event.timestamp);
-    const timeStr = date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }) + " " + date.toISOString().substring(11, 19);
-    const typeStr =
-      event.type === "solicitation"
-        ? chalk.yellow("SOLICIT")
-        : chalk.green("FULFILL");
-
-    let details = "";
-    if (event.type === "solicitation" && event.isNewDevice) {
-      details = chalk.cyan("new device");
-    } else if (event.type === "fulfillment" && event.targetUser) {
-      details = `→ ${event.targetUser.substring(0, 10)}...`;
-    }
-
-    timelineTable.push([
-      timeStr,
-      typeStr,
-      event.deviceKey,
-      event.creator,
-      event.sessionCount.toString(),
-      details,
-    ]);
-  }
-
-  console.log(timelineTable.toString());
-}
-
-function printAnomalies(analysis: SolicitationAnalysis): void {
-  console.log(chalk.bold.red("\n" + "─".repeat(100)));
-  console.log(chalk.bold.red("  ANOMALIES & WARNINGS"));
-  console.log(chalk.bold.red("─".repeat(100)));
-
-  if (analysis.anomalies.length === 0) {
-    console.log(chalk.green("  ✓ No anomalies detected"));
-    return;
-  }
-
-  const severityColors = {
-    high: chalk.red,
-    medium: chalk.yellow,
-    low: chalk.gray,
-  };
-
-  const severityIcons = {
-    high: "🔴",
-    medium: "🟡",
-    low: "⚪",
-  };
-
-  // Group by type
-  const byType = new Map<string, Anomaly[]>();
-  for (const anomaly of analysis.anomalies) {
-    if (!byType.has(anomaly.type)) {
-      byType.set(anomaly.type, []);
-    }
-    byType.get(anomaly.type)!.push(anomaly);
-  }
-
-  for (const [type, anomalies] of byType) {
     console.log(
-      chalk.bold(
-        `\n  ${type.toUpperCase().replace(/_/g, " ")} (${anomalies.length}):`
+      chalk.gray(
+        `    View count: ${result.viewCount} | Computed: ${result.computedCount}`
       )
     );
-
-    for (const anomaly of anomalies.slice(0, 10)) {
-      const color = severityColors[anomaly.severity];
-      const icon = severityIcons[anomaly.severity];
-      console.log(`    ${icon} ${color(anomaly.description)}`);
-    }
-
-    if (anomalies.length > 10) {
-      console.log(chalk.gray(`    ... and ${anomalies.length - 10} more`));
+    if (result.discrepancies.length > 0) {
+      console.log(chalk.yellow("\n  Discrepancies:"));
+      for (const d of result.discrepancies.slice(0, 10)) {
+        console.log(chalk.yellow(`    - ${d}`));
+      }
+      if (result.discrepancies.length > 10) {
+        console.log(
+          chalk.gray(`    ... and ${result.discrepancies.length - 10} more`)
+        );
+      }
     }
   }
 }
@@ -899,32 +327,25 @@ function printAnomalies(analysis: SolicitationAnalysis): void {
 
 const run = async () => {
   const streamIdParam = process.argv[2];
-  const userFilterParam = process.argv[3];
-  // If 3rd param looks like a number, it's blocks_to_fetch; otherwise it's a user filter
-  const isUserFilter = userFilterParam && !(/^\d+$/.test(userFilterParam));
-  const filterUserAddress = isUserFilter ? userFilterParam.toLowerCase() : undefined;
-  const blocksToFetch = parseInt(
-    isUserFilter ? (process.argv[4] || "400") : (userFilterParam || "400"),
-    10
-  );
+  const userFilterParam = process.argv[3]?.toLowerCase();
 
   if (!streamIdParam) {
-    console.error(
-      chalk.red("Usage: yarn solicitations <streamId> [userAddress] [blocks_to_fetch]")
-    );
+    console.error(chalk.red("Usage: yarn solicitations <streamId> [userAddress]"));
     console.error(chalk.gray("  streamId: The stream to analyze"));
-    console.error(chalk.gray("  userAddress: Optional - filter to solicitations FROM or fulfillments TO this user"));
-    console.error(chalk.gray("  blocks_to_fetch: defaults to 400"));
+    console.error(
+      chalk.gray("  userAddress: Optional - show details for specific user only")
+    );
     process.exit(1);
   }
 
   console.log(
-    chalk.cyan(`\nAnalyzing solicitations for stream ${streamIdParam}`)
+    chalk.cyan(
+      `\nAnalyzing solicitations for stream ${streamIdParam}`
+    )
   );
-  if (filterUserAddress) {
-    console.log(chalk.cyan(`Filtering for user: ${filterUserAddress}`));
+  if (userFilterParam) {
+    console.log(chalk.cyan(`Filtering for user: ${userFilterParam}`));
   }
-  console.log(chalk.gray(`Fetching last ${blocksToFetch} miniblocks...\n`));
 
   // Setup
   const config = townsEnv({ env }).makeTownsConfig();
@@ -941,71 +362,247 @@ const run = async () => {
 
   const riverRpcProvider = makeStreamRpcClient(rpcUrl);
 
-  // Fetch miniblocks
+  // Fetch the stream
+  console.log(chalk.gray(`Fetching stream...`));
   const streamId = streamIdAsBytes(streamIdParam);
-  const response1 = await riverRpcProvider.getLastMiniblockHash({ streamId });
-  const { miniblockNum } = response1;
+  const response = await riverRpcProvider.getStream({ streamId });
 
-  console.log(chalk.gray(`Latest miniblock: ${miniblockNum}`));
-
-  const fromBlock =
-    miniblockNum > BigInt(blocksToFetch)
-      ? miniblockNum - BigInt(blocksToFetch)
-      : 0n;
-
-  console.log(chalk.gray(`Fetching blocks ${fromBlock} to ${miniblockNum}...`));
-
-  const responses = await getCachedMiniblocks(
-    riverRpcProvider,
-    streamIdParam,
-    fromBlock,
-    miniblockNum,
-    {
-      batchSize: 50,
-      onProgress: (msg) => console.log(chalk.gray(msg)),
-    }
+  // Unpack and create StreamStateView
+  const unpackedResponse = await unpackStream(response.stream, undefined);
+  const streamView = new StreamStateView("0", streamIdParam, undefined);
+  streamView.initialize(
+    unpackedResponse.streamAndCookie.nextSyncCookie,
+    unpackedResponse.streamAndCookie.events,
+    unpackedResponse.snapshot,
+    unpackedResponse.streamAndCookie.miniblocks,
+    [],
+    unpackedResponse.prevSnapshotMiniblockNum,
+    undefined,
+    [],
+    undefined
   );
 
-  const total = responses.reduce(
-    (acc, response) => acc + response.miniblocks.length,
-    0
-  );
+  const snapshotMiniblockNum = unpackedResponse.prevSnapshotMiniblockNum;
+  const poolEventCount = unpackedResponse.streamAndCookie.events.length;
 
-  console.log(chalk.gray(`Processing ${total} miniblocks...`));
+  // ============================================================================
+  // 1. Extract outstanding solicitations from StreamStateView
+  // ============================================================================
+  const outstandingSolicitations: OutstandingSolicitation[] = [];
+  const members = streamView.getMembers();
 
-  // Analyze
-  const analysis = createEmptyAnalysis();
-
-  for (const response of responses) {
-    for (const block of response.miniblocks) {
-      const unpacked = await unpackMiniblock(block, {
-        disableHashValidation: true,
-        disableSignatureValidation: true,
-      });
-
-      for (const event of unpacked.events) {
-        processEvent(event, analysis, unpacked.header.miniblockNum, filterUserAddress);
+  for (const [userId, member] of members.joined) {
+    if (member.solicitations && member.solicitations.length > 0) {
+      for (const sol of member.solicitations) {
+        outstandingSolicitations.push({
+          userId,
+          deviceKey: sol.deviceKey,
+          fallbackKey: sol.fallbackKey,
+          isNewDevice: sol.isNewDevice,
+          sessionIds: [...sol.sessionIds],
+        });
       }
     }
   }
 
-  // Detect anomalies
-  detectAnomalies(analysis);
+  // ============================================================================
+  // 2. Extract solicitations from snapshot for verification
+  // ============================================================================
+  const snapshotSolicitations: SnapshotSolicitation[] = [];
+  const snapshot = unpackedResponse.snapshot;
 
-  // Print reports
-  printOverview(analysis, streamIdParam);
-  printDebugContentCases();
-  printSolicitationsByDevice(analysis);
-  printFulfillmentsByResponder(analysis);
-  printFulfillmentsByTargetUser(analysis);
-  printDeviceKeyMatching(analysis);
-  printSessionIdAnalysis(analysis);
-  printTimeline(analysis);
-  printAnomalies(analysis);
+  if (snapshot?.members?.joined) {
+    for (const member of snapshot.members.joined) {
+      const userId = userIdFromAddress(member.userAddress);
+      if (member.solicitations && member.solicitations.length > 0) {
+        for (const sol of member.solicitations) {
+          snapshotSolicitations.push({
+            userId,
+            deviceKey: sol.deviceKey,
+            fallbackKey: sol.fallbackKey,
+            isNewDevice: sol.isNewDevice,
+            sessionIds: [...sol.sessionIds],
+          });
+        }
+      }
+    }
+  }
 
-  console.log(chalk.bold.cyan("\n" + "═".repeat(100)));
+  // ============================================================================
+  // 3. Process events from pool to compute expected state
+  // ============================================================================
+  const computedState = new Map<
+    string,
+    {
+      userId: string;
+      deviceKey: string;
+      fallbackKey: string;
+      isNewDevice: boolean;
+      sessionIds: Set<string>;
+    }
+  >();
+
+  // Initialize with snapshot solicitations
+  for (const sol of snapshotSolicitations) {
+    const key = `${sol.userId}:${sol.deviceKey}`;
+    computedState.set(key, {
+      userId: sol.userId,
+      deviceKey: sol.deviceKey,
+      fallbackKey: sol.fallbackKey,
+      isNewDevice: sol.isNewDevice,
+      sessionIds: new Set(sol.sessionIds),
+    });
+  }
+
+  // Process events from the pool
+  let solicitationEventsCount = 0;
+  let fulfillmentEventsCount = 0;
+  let userSolicitationEvents = 0;
+  let userFulfillmentEvents = 0;
+
+  for (const parsedEvent of unpackedResponse.streamAndCookie.events) {
+    const payload = parsedEvent.event.payload;
+    if (payload?.case !== "memberPayload") continue;
+
+    const content = payload.value.content;
+    if (!content) continue;
+
+    const creatorUserId = parsedEvent.creatorUserId;
+
+    if (content.case === "keySolicitation") {
+      solicitationEventsCount++;
+      const sol = content.value;
+      const key = `${creatorUserId}:${sol.deviceKey}`;
+
+      if (userFilterParam && creatorUserId.toLowerCase() === userFilterParam) {
+        userSolicitationEvents++;
+      }
+
+      // New solicitation replaces old
+      computedState.set(key, {
+        userId: creatorUserId,
+        deviceKey: sol.deviceKey,
+        fallbackKey: sol.fallbackKey,
+        isNewDevice: sol.isNewDevice,
+        sessionIds: new Set(sol.sessionIds),
+      });
+    } else if (content.case === "keyFulfillment") {
+      fulfillmentEventsCount++;
+      const ful = content.value;
+      const targetUserId = userIdFromAddress(ful.userAddress);
+      const key = `${targetUserId}:${ful.deviceKey}`;
+
+      if (userFilterParam && targetUserId.toLowerCase() === userFilterParam) {
+        userFulfillmentEvents++;
+      }
+
+      const existing = computedState.get(key);
+      if (existing) {
+        for (const sessionId of ful.sessionIds) {
+          existing.sessionIds.delete(sessionId);
+        }
+        existing.isNewDevice = false;
+
+        if (existing.sessionIds.size === 0 && !existing.isNewDevice) {
+          computedState.delete(key);
+        }
+      }
+    }
+  }
+
+  // ============================================================================
+  // 4. Display results
+  // ============================================================================
+  if (userFilterParam) {
+    // Filtered view for specific user
+    printUserDetails(outstandingSolicitations, userFilterParam);
+    printSnapshotSolicitations(
+      snapshotSolicitations,
+      snapshotMiniblockNum,
+      userFilterParam
+    );
+    printPoolEvents(
+      solicitationEventsCount,
+      fulfillmentEventsCount,
+      userFilterParam,
+      userSolicitationEvents,
+      userFulfillmentEvents
+    );
+  } else {
+    // Summary view
+    printOverviewSummary(
+      outstandingSolicitations,
+      snapshotMiniblockNum,
+      poolEventCount,
+      solicitationEventsCount,
+      fulfillmentEventsCount
+    );
+  }
+
+  // ============================================================================
+  // 5. Verify: computed state should match StreamStateView
+  // ============================================================================
+  const discrepancies: string[] = [];
+
+  const viewState = new Map<string, OutstandingSolicitation>();
+  for (const sol of outstandingSolicitations) {
+    const key = `${sol.userId}:${sol.deviceKey}`;
+    viewState.set(key, sol);
+  }
+
+  for (const [key, computed] of computedState) {
+    const viewSol = viewState.get(key);
+    if (!viewSol) {
+      discrepancies.push(
+        `Computed has ${key} but view does not (sessions: ${computed.sessionIds.size})`
+      );
+      continue;
+    }
+
+    const computedSessions = [...computed.sessionIds].sort();
+    const viewSessions = [...viewSol.sessionIds].sort();
+
+    if (computedSessions.length !== viewSessions.length) {
+      discrepancies.push(
+        `${key}: session count mismatch (computed: ${computedSessions.length}, view: ${viewSessions.length})`
+      );
+    } else {
+      for (let i = 0; i < computedSessions.length; i++) {
+        if (computedSessions[i] !== viewSessions[i]) {
+          discrepancies.push(`${key}: session ID mismatch at index ${i}`);
+          break;
+        }
+      }
+    }
+
+    if (computed.isNewDevice !== viewSol.isNewDevice) {
+      discrepancies.push(
+        `${key}: isNewDevice mismatch (computed: ${computed.isNewDevice}, view: ${viewSol.isNewDevice})`
+      );
+    }
+  }
+
+  for (const [key, viewSol] of viewState) {
+    if (!computedState.has(key)) {
+      discrepancies.push(
+        `View has ${key} but computed does not (sessions: ${viewSol.sessionIds.length})`
+      );
+    }
+  }
+
+  const result: VerificationResult = {
+    matched: discrepancies.length === 0,
+    viewCount: outstandingSolicitations.length,
+    computedCount: computedState.size,
+    discrepancies,
+  };
+
+  printVerification(result);
+
+  // Final summary
+  console.log(chalk.bold.cyan("\n" + "═".repeat(80)));
   console.log(chalk.bold.cyan("  END OF REPORT"));
-  console.log(chalk.bold.cyan("═".repeat(100) + "\n"));
+  console.log(chalk.bold.cyan("═".repeat(80) + "\n"));
 };
 
 run()
