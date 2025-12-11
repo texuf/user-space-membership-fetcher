@@ -4,6 +4,7 @@ build({
   entryPoints: {
     getStream: "./src/get-stream.ts",
     inbox: "./src/user-inbox.ts",
+    metadata: "./src/user-metadata.ts",
     operators: "./src/operators.ts",
     permissions: "./src/permissions.ts",
     solicitations: "./src/solicitations.ts",

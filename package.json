@@ -51,7 +51,8 @@
     "stream": "yarn build && node ./dist/stream.cjs $*",
     "tips": "yarn build && node ./dist/tips.cjs $*",
     "token": "yarn build && node ./dist/token.cjs $*",
-    "user": "yarn build && node ./dist/user.cjs $*"
+    "user": "yarn build && node ./dist/user.cjs $*",
+    "metadata": "yarn build && node ./dist/metadata.cjs $*"
   },
   "files": [
     "/dist"
