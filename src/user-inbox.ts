@@ -585,11 +585,12 @@ function printDeviceAnalysis(analysis: InboxAnalysis): void {
     head: [
       chalk.white("Device Key"),
       chalk.white("Sessions"),
+      chalk.white("Unique"),
+      chalk.white("Dupes"),
       chalk.white("Senders"),
       chalk.white("First Seen"),
       chalk.white("Last Seen"),
       chalk.white("Last Ack"),
-      chalk.white("Ack Block"),
       chalk.white("Status"),
     ],
     wordWrap: true,
@@ -599,36 +600,37 @@ function printDeviceAnalysis(analysis: InboxAnalysis): void {
     (a, b) => b.lastSeenTimestamp - a.lastSeenTimestamp
   );
 
-  // Count duplicates per device
+  // Count unique sessions and duplicates per device
+  const uniquePerDevice = new Map<string, number>();
   const duplicatesPerDevice = new Map<string, number>();
-  for (const dup of analysis.deviceSessionDuplicates) {
-    duplicatesPerDevice.set(
-      dup.deviceKey,
-      (duplicatesPerDevice.get(dup.deviceKey) || 0) + 1
-    );
+
+  for (const [countKey, data] of analysis.deviceSessionCounts) {
+    const deviceKey = countKey.split(":")[0];
+    uniquePerDevice.set(deviceKey, (uniquePerDevice.get(deviceKey) || 0) + 1);
+    if (data.count > 1) {
+      duplicatesPerDevice.set(
+        deviceKey,
+        (duplicatesPerDevice.get(deviceKey) || 0) + (data.count - 1)
+      );
+    }
   }
 
   for (const device of sortedDevices) {
     const hasAck = device.lastAckMiniblock > 0n;
+    const uniqueCount = uniquePerDevice.get(device.deviceKey) || 0;
     const dupCount = duplicatesPerDevice.get(device.deviceKey) || 0;
 
-    let status: string;
-    if (dupCount > 0) {
-      status = chalk.red(`${dupCount} dups`);
-    } else if (hasAck) {
-      status = chalk.green("Active");
-    } else {
-      status = chalk.yellow("No Acks");
-    }
+    const status = hasAck ? chalk.green("Active") : chalk.yellow("No Acks");
 
     deviceTable.push([
       device.deviceKey,
       device.sessionsReceived.toString(),
+      uniqueCount.toString(),
+      dupCount > 0 ? chalk.red(dupCount.toString()) : chalk.green("0"),
       device.uniqueSenders.size.toString(),
       formatDateTime(device.firstSeenTimestamp),
       formatDateTime(device.lastSeenTimestamp),
       formatDateTime(device.lastAckTimestamp),
-      device.lastAckMiniblock > 0n ? device.lastAckMiniblock.toString() : "-",
       status,
     ]);
   }

@@ -5,7 +5,9 @@ import {
   ParsedEvent,
   streamIdAsBytes,
   unpackMiniblock,
+  unpackStream,
   getUserIdFromStreamId,
+  StreamStateView,
 } from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
@@ -76,10 +78,7 @@ function formatDateTime(timestamp: number): string {
   return `${month} ${day} ${hours}:${mins}:${secs}`;
 }
 
-function processEvent(
-  event: ParsedEvent,
-  analysis: MetadataAnalysis
-): void {
+function processEvent(event: ParsedEvent, analysis: MetadataAnalysis): void {
   const payload = event.event.payload;
   if (payload?.case !== "userMetadataPayload") {
     return;
@@ -135,6 +134,54 @@ function processEvent(
 // Display Functions
 // ============================================================================
 
+interface EncryptionDeviceData {
+  deviceKey: string;
+  fallbackKey: string;
+}
+
+function printCurrentState(devices: EncryptionDeviceData[]): void {
+  console.log(chalk.bold.green("\n" + "═".repeat(80)));
+  console.log(chalk.bold.green("  CURRENT STATE (from snapshot)"));
+  console.log(chalk.bold.green("═".repeat(80)));
+
+  // Current devices table
+  console.log(chalk.bold.white("\n  Registered Encryption Devices:"));
+
+  if (devices.length === 0) {
+    console.log(chalk.yellow("    No devices registered"));
+  } else {
+    const deviceTable = new Table({
+      head: [
+        chalk.white("#"),
+        chalk.white("Device Key"),
+        chalk.white("Fallback Key"),
+      ],
+      wordWrap: true,
+    });
+
+    let index = 1;
+    for (const device of devices) {
+      deviceTable.push([
+        index.toString(),
+        device.deviceKey,
+        device.fallbackKey || "-",
+      ]);
+      index++;
+    }
+
+    console.log(deviceTable.toString());
+  }
+
+  // Summary
+  const infoTable = new Table({
+    wordWrap: true,
+  });
+
+  infoTable.push({ "Total Devices in Snapshot": devices.length.toString() });
+
+  console.log(infoTable.toString());
+}
+
 function printOverview(analysis: MetadataAnalysis, streamId: string): void {
   console.log(chalk.bold.cyan("\n" + "═".repeat(80)));
   console.log(chalk.bold.cyan("  USER METADATA ANALYSIS"));
@@ -150,7 +197,9 @@ function printOverview(analysis: MetadataAnalysis, streamId: string): void {
     { "Stream ID": streamId },
     {
       "Time Range": hasEvents
-        ? `${formatDateTime(analysis.timeRangeStart)} - ${formatDateTime(analysis.timeRangeEnd)}`
+        ? `${formatDateTime(analysis.timeRangeStart)} - ${formatDateTime(
+            analysis.timeRangeEnd
+          )}`
         : "No events",
     },
     { "Total Events": analysis.totalEvents.toString() },
@@ -181,14 +230,11 @@ function printEventFrequency(analysis: MetadataAnalysis): void {
   );
 
   for (const [eventType, count] of sortedEvents) {
-    const percentage = analysis.totalEvents > 0
-      ? ((count / analysis.totalEvents) * 100).toFixed(1)
-      : "0.0";
-    freqTable.push([
-      eventType,
-      count.toString(),
-      `${percentage}%`,
-    ]);
+    const percentage =
+      analysis.totalEvents > 0
+        ? ((count / analysis.totalEvents) * 100).toFixed(1)
+        : "0.0";
+    freqTable.push([eventType, count.toString(), `${percentage}%`]);
   }
 
   console.log(freqTable.toString());
@@ -353,7 +399,30 @@ const run = async () => {
 
   const riverRpcProvider = makeStreamRpcClient(rpcUrl);
 
-  // Fetch miniblocks
+  // First, fetch the current stream state
+  console.log(chalk.gray(`Fetching current stream state...`));
+  const streamResponse = await riverRpcProvider.getStream({
+    streamId: streamIdAsBytes(userMetadataStreamId),
+  });
+
+  const unpackedResponse = await unpackStream(streamResponse.stream, undefined);
+  const streamView = new StreamStateView("0", userMetadataStreamId, undefined);
+  streamView.initialize(
+    unpackedResponse.streamAndCookie.nextSyncCookie,
+    unpackedResponse.streamAndCookie.events,
+    unpackedResponse.snapshot,
+    unpackedResponse.streamAndCookie.miniblocks,
+    [],
+    unpackedResponse.prevSnapshotMiniblockNum,
+    undefined,
+    [],
+    undefined
+  );
+
+  // Print current state from snapshot
+  printCurrentState(streamView.userMetadataContent.deviceKeys);
+
+  // Now fetch historical miniblocks
   const streamId = streamIdAsBytes(userMetadataStreamId);
   const response1 = await riverRpcProvider.getLastMiniblockHash({ streamId });
   const { miniblockNum } = response1;
