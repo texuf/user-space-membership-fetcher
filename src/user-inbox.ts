@@ -9,6 +9,8 @@ import {
   unpackMiniblock,
   getUserIdFromStreamId,
 } from "@towns-protocol/sdk";
+import { Envelope, Snapshot, SnapshotSchema } from "@towns-protocol/proto";
+import { fromBinary } from "@bufbuild/protobuf";
 import {
   INVALID_ADDRESS,
   LocalhostWeb3Provider,
@@ -91,7 +93,16 @@ interface InboxAnalysis {
   devices: Map<string, DeviceStats>;
   deviceAcks: Map<string, AckInfo[]>;
   // Per-device session tracking: "deviceKey:sessionId" -> count (lightweight)
-  deviceSessionCounts: Map<string, { count: number; streamId: string; senders: Set<string>; firstSeen: number; lastSeen: number }>;
+  deviceSessionCounts: Map<
+    string,
+    {
+      count: number;
+      streamId: string;
+      senders: Set<string>;
+      firstSeen: number;
+      lastSeen: number;
+    }
+  >;
   // Duplicates per device (same session to same device twice)
   deviceSessionDuplicates: DeviceSessionDuplicate[];
 
@@ -360,7 +371,12 @@ function detectAnomalies(analysis: InboxAnalysis): void {
       analysis.anomalies.push({
         type: "duplicate_session",
         severity,
-        description: `Session ${sessionId.substring(0, 16)}... sent to device ${deviceKey.substring(0, 12)}... ${data.count} times`,
+        description: `Session ${sessionId.substring(
+          0,
+          16
+        )}... sent to device ${deviceKey.substring(0, 12)}... ${
+          data.count
+        } times`,
         details: {
           deviceKey,
           sessionId,
@@ -576,6 +592,90 @@ function formatDateTime(timestamp: number): string {
   return `${month} ${day} ${hours}:${mins}:${secs}`;
 }
 
+function printSnapshotDeviceSummary(snapshots: {
+  [key: string]: Envelope;
+}): void {
+  console.log(chalk.bold.green("\n" + "═".repeat(80)));
+  console.log(chalk.bold.green("  SNAPSHOT DEVICE SUMMARY"));
+  console.log(chalk.bold.green("═".repeat(80)));
+
+  // Find the snapshot with the highest block number
+  const snapshotKeys = Object.keys(snapshots);
+  if (snapshotKeys.length === 0) {
+    console.log(chalk.yellow("  No snapshots found in fetched data"));
+    return;
+  }
+
+  // Sort by block number descending and take the highest
+  const sortedKeys = snapshotKeys.sort((a, b) => Number(BigInt(b) - BigInt(a)));
+  const highestBlockNum = sortedKeys[0];
+  const snapshotEnvelope = snapshots[highestBlockNum];
+
+  console.log(
+    chalk.gray(`  Using snapshot from miniblock ${highestBlockNum}\n`)
+  );
+
+  let snapshot: Snapshot;
+  try {
+    snapshot = fromBinary(SnapshotSchema, snapshotEnvelope.event);
+  } catch (e) {
+    console.log(chalk.yellow("  Failed to decode snapshot"));
+    return;
+  }
+
+  // Check if it's a user inbox snapshot
+  if (snapshot.content?.case !== "userInboxContent") {
+    console.log(
+      chalk.yellow(
+        `  Snapshot is not a user inbox snapshot (case: ${snapshot.content?.case})`
+      )
+    );
+    return;
+  }
+
+  const inboxContent = snapshot.content.value;
+  const deviceSummary = inboxContent.deviceSummary;
+
+  if (!deviceSummary || Object.keys(deviceSummary).length === 0) {
+    console.log(chalk.yellow("  No device summary in snapshot"));
+    return;
+  }
+
+  const deviceTable = new Table({
+    head: [
+      chalk.white("Device Key"),
+      chalk.white("Lower Bound"),
+      chalk.white("Upper Bound"),
+      chalk.white("Gap"),
+    ],
+    wordWrap: true,
+  });
+
+  const entries = Object.entries(deviceSummary).sort((a, b) => {
+    // Sort by upper_bound descending (most recent activity first)
+    return Number(b[1].upperBound - a[1].upperBound);
+  });
+
+  for (const [deviceKey, summary] of entries) {
+    const gap = Number(summary.upperBound - summary.lowerBound);
+    deviceTable.push([
+      deviceKey,
+      summary.lowerBound.toString(),
+      summary.upperBound.toString(),
+      gap > 0 ? chalk.yellow(gap.toString()) : chalk.green("0"),
+    ]);
+  }
+
+  console.log(deviceTable.toString());
+
+  console.log(
+    chalk.gray(
+      `\n  Summary: ${entries.length} devices in snapshot | ` +
+        `Lower bound = latest ack | Upper bound = latest event sent to device`
+    )
+  );
+}
+
 function printDeviceAnalysis(analysis: InboxAnalysis): void {
   console.log(chalk.bold.magenta("\n" + "─".repeat(80)));
   console.log(chalk.bold.magenta("  DEVICE ANALYSIS (ALL DEVICES)"));
@@ -662,7 +762,9 @@ function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
     console.log(chalk.bold.green("  DUPLICATE SESSION ANALYSIS (PER DEVICE)"));
     console.log(chalk.bold.green("─".repeat(80)));
     console.log(
-      chalk.green("  ✓ No duplicate sessions detected (same session to same device)")
+      chalk.green(
+        "  ✓ No duplicate sessions detected (same session to same device)"
+      )
     );
     return;
   }
@@ -711,7 +813,9 @@ function printDuplicateSessionAnalysis(analysis: InboxAnalysis): void {
   if (analysis.deviceSessionDuplicates.length > 20) {
     console.log(
       chalk.gray(
-        `  ... and ${analysis.deviceSessionDuplicates.length - 20} more duplicates`
+        `  ... and ${
+          analysis.deviceSessionDuplicates.length - 20
+        } more duplicates`
       )
     );
   }
@@ -1007,6 +1111,14 @@ const run = async () => {
 
   console.log(chalk.gray(`Processing ${total} miniblocks...`));
 
+  // Collect all snapshots from responses
+  const allSnapshots: { [key: string]: Envelope } = {};
+  for (const response of responses) {
+    for (const [blockNum, envelope] of Object.entries(response.snapshots)) {
+      allSnapshots[blockNum] = envelope as Envelope;
+    }
+  }
+
   // Analyze
   const analysis = createEmptyAnalysis();
 
@@ -1025,6 +1137,9 @@ const run = async () => {
 
   // Detect anomalies
   detectAnomalies(analysis);
+
+  // Print snapshot device summary first
+  printSnapshotDeviceSummary(allSnapshots);
 
   // Print reports
   printOverview(analysis);
