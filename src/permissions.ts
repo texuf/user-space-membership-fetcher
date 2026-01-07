@@ -17,6 +17,17 @@ import {
 import { env } from "./env";
 import SuperJSON from "superjson";
 import { ensureHexPrefix } from "./utils/utils";
+import { BigNumber } from "ethers";
+
+// Register ethers BigNumber with SuperJSON
+SuperJSON.registerCustom<BigNumber, string>(
+  {
+    isApplicable: (v): v is BigNumber => BigNumber.isBigNumber(v),
+    serialize: (v) => v.toHexString(),
+    deserialize: (v) => BigNumber.from(v),
+  },
+  "ethers.BigNumber"
+);
 
 const run = async () => {
   // Get the wallet address from the command line arguments
@@ -31,7 +42,7 @@ const run = async () => {
   }
   const param2 = process.argv[3];
 
-  console.log(`Running permissions for ${param} in ${env}`);
+  console.log(`Running permissions for ${param} in ${env.RIVER_ENV}`);
 
   // make the config
   const config = townsEnv({ env }).makeTownsConfig();
@@ -45,25 +56,30 @@ const run = async () => {
   if (isSpaceStreamId(param)) {
     const space = await spaceDapp.getSpace(param);
     if (param2) {
-      const isEntitledRead = await spaceDapp.isEntitledToSpace(
-        param,
-        param2,
-        Permission.Read
-      );
+      const entitlements = {
+        read: await spaceDapp.isEntitledToSpace(param, param2, Permission.Read),
+        write: await spaceDapp.isEntitledToSpace(
+          param,
+          param2,
+          Permission.Write
+        ),
+        modify: await spaceDapp.isEntitledToSpace(
+          param,
+          param2,
+          Permission.ModifySpaceSettings
+        ),
+      };
 
       const wallets = await spaceDapp.getWalletLink().getLinkedWallets(param2);
 
-      const isMember: { address: string; isMember?: boolean }[] = wallets.map(
-        (x) => ({ address: x, isMember: undefined })
+      const isMember = await Promise.all(
+        wallets.map(async (x) => {
+          const status = await spaceDapp.getMembershipStatus(param, [x]);
+          return { address: x, status };
+        })
       );
-      for (const x of isMember) {
-        x.isMember = await spaceDapp.hasSpaceMembership(param, [x.address]);
-      }
 
-      console.log(
-        `isEntitled:`,
-        JSON.stringify({ isEntitledRead, isMember }, undefined, 2)
-      );
+      console.log(`isEntitled:`, entitlements, "\nmember:", isMember);
     }
   } else if (isChannelStreamId(param)) {
     console.log("channel?");
@@ -95,7 +111,33 @@ const run = async () => {
         ensureHexPrefix(channelId),
         Permission.Read
       );
+
     console.log("entitlement data", SuperJSON.stringify(entitlementData));
+    if (param2) {
+      const tokenId = await space.getTokenIdsOfOwner([param2]);
+      console.log("tokenId", tokenId);
+      const isEntitled = {
+        read: await spaceDapp.isEntitledToChannel(
+          spaceId,
+          channelId,
+          param2,
+          Permission.Read
+        ),
+        write: await spaceDapp.isEntitledToChannel(
+          spaceId,
+          channelId,
+          param2,
+          Permission.Write
+        ),
+        redact: await spaceDapp.isEntitledToChannel(
+          spaceId,
+          channelId,
+          param2,
+          Permission.Redact
+        ),
+      };
+      console.log("isEntitledToChannel", isEntitled);
+    }
   } else {
     console.log("not space or channel");
   }
@@ -109,7 +151,7 @@ const run = async () => {
   // find nodes for the stream
   const streamStruct = await riverRegistry.getStream(streamIdAsBytes(param));
 
-  console.log("Stream:");
+  console.log("\n==============\nStream:");
   console.log(JSON.stringify(streamStruct, undefined, 2));
   console.log("Node:");
   const node = await riverRegistry.nodeRegistry.read.getNode(

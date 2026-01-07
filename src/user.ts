@@ -1,4 +1,8 @@
-import { bin_fromBase64, bin_toHexString } from "@towns-protocol/utils";
+import {
+  bin_fromBase64,
+  bin_fromHexString,
+  bin_toHexString,
+} from "@towns-protocol/utils";
 import { MembershipOp } from "@towns-protocol/proto";
 import {
   getUserIdFromStreamId,
@@ -15,6 +19,12 @@ import {
   StreamStateView,
   unpackStream,
   userIdFromAddress,
+  makeSpaceStreamId,
+  makeUniqueSpaceStreamId,
+  make_UserInboxPayload_GroupEncryptionSessions,
+  makeEvent,
+  makeSignerContext,
+  genId,
 } from "@towns-protocol/sdk";
 import {
   INVALID_ADDRESS,
@@ -25,6 +35,7 @@ import {
 } from "@towns-protocol/web3";
 import { printStreamResponseEvents } from "./utils/utils";
 import { env } from "./env";
+import { Wallet } from "ethers";
 
 const bListSpaceNames = true;
 
@@ -96,6 +107,46 @@ const run = async () => {
   console.log(`Using RPC URL: ${rpcUrl}`);
   const riverRpcProvider = makeStreamRpcClient(rpcUrl);
 
+  // add a fake user user inbox stream
+  const fakeStreamId = makeUniqueSpaceStreamId();
+  const payload = make_UserInboxPayload_GroupEncryptionSessions({
+    streamId: streamIdAsBytes(fakeStreamId),
+    senderKey:
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    sessionIds: [genId()],
+    ciphertexts: {
+      "0x0000000000000000000000000000000000000000000000000000000000000000":
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+    },
+    algorithm:
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+  });
+
+  const prevSnapshotMiniblockNum = await riverRpcProvider.getLastMiniblockHash({
+    streamId: streamIdAsBytes(userInboxStreamId),
+  });
+  console.log("prevSnapshotMiniblockNum", prevSnapshotMiniblockNum);
+  const wallet = Wallet.createRandom();
+  const delegateWallet = Wallet.createRandom();
+  const signerContext = await makeSignerContext(wallet, delegateWallet);
+  const event = makeEvent(
+    signerContext,
+    payload,
+    prevSnapshotMiniblockNum.hash,
+    prevSnapshotMiniblockNum.miniblockNum,
+    undefined,
+    false
+  );
+
+  const addEventResponse = await riverRpcProvider.addEvent({
+    streamId: streamIdAsBytes(userInboxStreamId),
+    event: event,
+  });
+
+  console.log("addEventResponse", addEventResponse);
+
+  return;
+
   // fetch the user stream
   const response = await riverRpcProvider.getStream({
     streamId: streamIdAsBytes(userStreamId),
@@ -133,7 +184,7 @@ const run = async () => {
     if (bListSpaceNames) {
       const spaceInfo = await spaceDapp.getSpaceInfo(streamId);
       if (spaceInfo) {
-        console.log(address, spaceInfo.name);
+        console.log(address, spaceInfo?.name);
       } else {
         console.log(address, "no space info");
       }
